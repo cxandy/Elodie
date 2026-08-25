@@ -384,6 +384,13 @@ def _update(album, location, time, title, paths, debug, dry_run):
         sys.exit(1)
 
 
+@click.command('gui')
+def _gui():
+    """Launch the Elodie graphical interface."""
+    from gui.main import main as gui_main
+    gui_main()
+
+
 @click.group()
 def main():
     pass
@@ -394,6 +401,7 @@ main.add_command(_update)
 main.add_command(_generate_db)
 main.add_command(_verify)
 main.add_command(_batch)
+main.add_command(_gui)
 
 
 if __name__ == '__main__':
