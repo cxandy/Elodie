@@ -16,6 +16,8 @@ class PreviewPage(QWidget):
     def __init__(self):
         super().__init__()
         self._files = []
+        self._current_page = 0
+        self._page_size = 40
         self._setup_ui()
 
     def _setup_ui(self):
@@ -42,6 +44,23 @@ class PreviewPage(QWidget):
         self.scroll_area.setWidget(self.grid_widget)
         layout.addWidget(self.scroll_area)
 
+        pager = QHBoxLayout()
+        self.btn_prev = QPushButton("上一页")
+        self.btn_prev.clicked.connect(self._prev_page)
+        self.btn_prev.setEnabled(False)
+        pager.addWidget(self.btn_prev)
+
+        self.page_label = QLabel()
+        self.page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        pager.addWidget(self.page_label)
+
+        self.btn_next = QPushButton("下一页")
+        self.btn_next.clicked.connect(self._next_page)
+        self.btn_next.setEnabled(False)
+        pager.addWidget(self.btn_next)
+
+        layout.addLayout(pager)
+
         info_group = QGroupBox("EXIF 信息")
         info_layout = QVBoxLayout()
         self.info_text = QTextEdit()
@@ -61,7 +80,25 @@ class PreviewPage(QWidget):
         from elodie.filesystem import FileSystem
         fs = FileSystem()
         self._files = list(fs.get_all_files(folder))
+        self._current_page = 0
         self._render_grid()
+
+    def _total_pages(self):
+        if not self._files:
+            return 1
+        return (len(self._files) + self._page_size - 1) // self._page_size
+
+    def _prev_page(self):
+        if self._current_page > 0:
+            self._current_page -= 1
+            self._render_grid()
+            self.scroll_area.verticalScrollBar().setValue(0)
+
+    def _next_page(self):
+        if self._current_page < self._total_pages() - 1:
+            self._current_page += 1
+            self._render_grid()
+            self.scroll_area.verticalScrollBar().setValue(0)
 
     def _render_grid(self):
         while self.grid_layout.count():
@@ -70,8 +107,12 @@ class PreviewPage(QWidget):
             if widget:
                 widget.deleteLater()
 
+        start = self._current_page * self._page_size
+        end = start + self._page_size
+        page_files = self._files[start:end]
+
         cols = 4
-        for i, filepath in enumerate(self._files[:40]):
+        for i, filepath in enumerate(page_files):
             frame = QFrame()
             frame.setFrameShape(QFrame.Shape.Box)
             frame.setStyleSheet(
@@ -105,6 +146,13 @@ class PreviewPage(QWidget):
             row = i // cols
             col = i % cols
             self.grid_layout.addWidget(frame, row, col)
+
+        total = self._total_pages()
+        self.page_label.setText(
+            f"第 {self._current_page + 1}/{total} 页，共 {len(self._files)} 个文件"
+        )
+        self.btn_prev.setEnabled(self._current_page > 0)
+        self.btn_next.setEnabled(self._current_page < total - 1)
 
         if not self._files:
             self.info_text.setText("未找到文件。请打开一个文件夹。")
