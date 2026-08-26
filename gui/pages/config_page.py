@@ -1,16 +1,68 @@
 """Config page - manage Elodie settings."""
+import json
 import os
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QTextEdit, QGroupBox, QFormLayout,
     QLineEdit, QMessageBox, QScrollArea, QDialog,
-    QDialogButtonBox,
+    QDialogButtonBox, QListWidget, QListWidgetItem,
 )
 from PySide6.QtCore import Qt
 
 from elodie import constants
 from elodie.config import load_config, get_config_file
+
+
+PRESETS_FILE = os.path.join(constants.application_directory(), 'presets.json')
+
+DEFAULT_PRESETS = {
+    "家庭照片": """[Directory]
+year=%Y
+month=%m
+full_path=%year/%month/%album|"家庭照片"
+
+[File]
+date=%Y-%m-%d_%H-%M-%S
+name=%date-%original_name.%extension
+""",
+    "旅行照片": """[Directory]
+year=%Y
+month=%m
+location=%city, %state
+full_path=%year/%month/%album|%location|"旅行照片"
+
+[File]
+date=%Y-%m-%d_%H-%M-%S
+name=%date-%original_name.%extension
+""",
+    "简洁模式": """[Directory]
+year=%Y
+month=%m
+full_path=%year/%month
+
+[File]
+date=%Y-%m-%d_%H-%M-%S
+name=%date-%original_name.%extension
+""",
+    "按日期分类": """[Directory]
+date=%Y-%m-%d
+full_path=%date
+
+[File]
+date=%Y-%m-%d_%H-%M-%S
+name=%date-%original_name.%extension
+""",
+    "专业模式": """[Directory]
+year=%Y
+camera=%camera_make %camera_model
+full_path=%year/%camera
+
+[File]
+date=%Y-%m-%d_%H-%M-%S
+name=%date-%original_name-%title.%extension
+""",
+}
 
 
 HELP_TEXT = """\
@@ -185,6 +237,41 @@ class ConfigPage(QWidget):
         config_group.setLayout(config_layout)
         layout.addWidget(config_group, 1)
 
+        presets_group = QGroupBox("常用配置")
+        presets_layout = QVBoxLayout()
+
+        preset_row = QHBoxLayout()
+
+        self.preset_list = QListWidget()
+        self.preset_list.setMaximumHeight(100)
+        self.preset_list.currentItemChanged.connect(self._on_preset_selected)
+        preset_row.addWidget(self.preset_list)
+
+        preset_btn_col = QVBoxLayout()
+        self.preset_name_input = QLineEdit()
+        self.preset_name_input.setPlaceholderText("输入配置名称...")
+        preset_btn_col.addWidget(self.preset_name_input)
+
+        btn_save_preset = QPushButton("保存为预设")
+        btn_save_preset.clicked.connect(self._save_preset)
+        preset_btn_col.addWidget(btn_save_preset)
+
+        btn_load_preset = QPushButton("加载选中")
+        btn_load_preset.clicked.connect(self._load_preset)
+        preset_btn_col.addWidget(btn_load_preset)
+
+        btn_delete_preset = QPushButton("删除预设")
+        btn_delete_preset.clicked.connect(self._delete_preset)
+        preset_btn_col.addWidget(btn_delete_preset)
+
+        preset_row.addLayout(preset_btn_col)
+        presets_layout.addLayout(preset_row)
+
+        presets_group.setLayout(presets_layout)
+        layout.addWidget(presets_group)
+
+        self._load_presets()
+
         tools_group = QGroupBox("工具")
         tools_layout = QHBoxLayout()
 
@@ -271,3 +358,86 @@ name=%date-%original_name-%title.%extension
             "python elodie.py verify\n\n"
             "此操作会检查所有已导入文件的完整性。"
         )
+
+    def _load_presets(self):
+        presets = self._read_presets()
+        self.preset_list.clear()
+        for name in presets:
+            self.preset_list.addItem(name)
+
+    def _read_presets(self):
+        if os.path.exists(PRESETS_FILE):
+            try:
+                with open(PRESETS_FILE, 'r', encoding='utf-8-sig') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+        return dict(DEFAULT_PRESETS)
+
+    def _write_presets(self, presets):
+        config_dir = os.path.dirname(PRESETS_FILE)
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir)
+        with open(PRESETS_FILE, 'w', encoding='utf-8-sig') as f:
+            json.dump(presets, f, ensure_ascii=False, indent=2)
+
+    def _on_preset_selected(self, current, previous):
+        if current:
+            self.preset_name_input.setText(current.text())
+
+    def _save_preset(self):
+        name = self.preset_name_input.text().strip()
+        if not name:
+            QMessageBox.warning(self, "错误", "请输入配置名称")
+            return
+
+        presets = self._read_presets()
+        content = self.config_editor.toPlainText()
+
+        if name in presets:
+            reply = QMessageBox.question(
+                self, "确认",
+                f"预设「{name}」已存在，是否覆盖？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        presets[name] = content
+        self._write_presets(presets)
+        self._load_presets()
+        QMessageBox.information(self, "成功", f"预设「{name}」已保存")
+
+    def _load_preset(self):
+        current = self.preset_list.currentItem()
+        if not current:
+            QMessageBox.warning(self, "错误", "请先选择一个预设")
+            return
+
+        name = current.text()
+        presets = self._read_presets()
+        if name in presets:
+            self.config_editor.setText(presets[name])
+            QMessageBox.information(self, "成功", f"已加载预设「{name}」")
+
+    def _delete_preset(self):
+        current = self.preset_list.currentItem()
+        if not current:
+            QMessageBox.warning(self, "错误", "请先选择一个预设")
+            return
+
+        name = current.text()
+        reply = QMessageBox.question(
+            self, "确认",
+            f"确定要删除预设「{name}」吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        presets = self._read_presets()
+        if name in presets:
+            del presets[name]
+            self._write_presets(presets)
+            self._load_presets()
+            QMessageBox.information(self, "成功", f"预设「{name}」已删除")
