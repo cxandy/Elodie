@@ -18,7 +18,7 @@ def load_config():
         return {}
 
     load_config.config = RawConfigParser()
-    load_config.config.read(config_file)
+    load_config.config.read(config_file, encoding='utf-8-sig')
     return load_config.config
 
 def load_plugin_config():

@@ -205,7 +205,7 @@ class ConfigPage(QWidget):
     def _load_config_content(self):
         config_file = get_config_file()
         if os.path.exists(config_file):
-            with open(config_file, 'r', encoding='utf-8') as f:
+            with open(config_file, 'r', encoding='utf-8-sig') as f:
                 self.config_editor.setText(f.read())
         else:
             default_config = """[Directory]
@@ -226,7 +226,7 @@ name=%date-%original_name-%title.%extension
             os.makedirs(config_dir)
 
         content = self.config_editor.toPlainText()
-        with open(config_file, 'w', encoding='utf-8') as f:
+        with open(config_file, 'w', encoding='utf-8-sig') as f:
             f.write(content)
 
         QMessageBox.information(self, "成功", "配置已保存")
