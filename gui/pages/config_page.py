@@ -62,6 +62,16 @@ full_path=%year/%camera
 date=%Y-%m-%d_%H-%M-%S
 name=%date-%original_name-%title.%extension
 """,
+    "按地点分类": """[Directory]
+year=%Y
+month=%m
+location=%city, %state
+full_path=%year/%location
+
+[File]
+date=%Y-%m-%d_%H-%M-%S
+name=%date-%original_name.%extension
+""",
 }
 
 
