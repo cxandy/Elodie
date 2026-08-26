@@ -63,10 +63,9 @@ date=%Y-%m-%d_%H-%M-%S
 name=%date-%original_name-%title.%extension
 """,
     "按地点分类": """[Directory]
-year=%Y
-month=%m
 location=%city, %state
-full_path=%year/%location
+year=%Y
+full_path=%location/%year
 
 [File]
 date=%Y-%m-%d_%H-%M-%S
