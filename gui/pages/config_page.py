@@ -427,7 +427,18 @@ name=%date-%original_name-%title.%extension
         presets = self._read_presets()
         if name in presets:
             self.config_editor.setText(presets[name])
-            QMessageBox.information(self, "成功", f"已加载预设「{name}」")
+
+            config_file = get_config_file()
+            config_dir = os.path.dirname(config_file)
+            if not os.path.exists(config_dir):
+                os.makedirs(config_dir)
+            with open(config_file, 'w', encoding='utf-8-sig') as f:
+                f.write(presets[name])
+
+            if hasattr(load_config, "config"):
+                del load_config.config
+
+            QMessageBox.information(self, "成功", f"已加载并应用预设「{name}」")
 
     def _delete_preset(self):
         current = self.preset_list.currentItem()
