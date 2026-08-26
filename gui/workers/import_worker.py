@@ -38,6 +38,10 @@ class ImportWorker(QThread):
         self.allow_duplicates = allow_duplicates
         self.location = location
         self.time = time
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
 
     def run(self):
         from elodie import geolocation
@@ -59,6 +63,8 @@ class ImportWorker(QThread):
 
         with ExifTool(executable_=get_exiftool(), addedargs=exiftool_addedargs):
             for i, filepath in enumerate(self.files):
+                if self._cancelled:
+                    break
                 filepath = _decode(filepath)
                 self.progress.emit(i + 1, total, os.path.basename(filepath))
 
@@ -128,6 +134,10 @@ class UpdateWorker(QThread):
         self.time = time
         self.album = album
         self.title = title
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
 
     def run(self):
         from elodie import geolocation
@@ -150,6 +160,8 @@ class UpdateWorker(QThread):
 
         with ExifTool(executable_=get_exiftool(), addedargs=exiftool_addedargs):
             for i, filepath in enumerate(self.files):
+                if self._cancelled:
+                    break
                 filepath = _decode(filepath)
                 self.progress.emit(i + 1, total, os.path.basename(filepath))
 

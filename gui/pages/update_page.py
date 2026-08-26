@@ -96,6 +96,16 @@ class UpdatePage(QWidget):
         self.btn_update.clicked.connect(self._start_update)
         btn_row.addWidget(self.btn_update)
 
+        self.btn_cancel = QPushButton("取消")
+        self.btn_cancel.setVisible(False)
+        self.btn_cancel.setStyleSheet(
+            "QPushButton { background-color: #f44336; color: white; "
+            "padding: 8px 24px; font-weight: bold; border-radius: 4px; }"
+            "QPushButton:hover { background-color: #d32f2f; }"
+        )
+        self.btn_cancel.clicked.connect(self._cancel_update)
+        btn_row.addWidget(self.btn_cancel)
+
         layout.addLayout(btn_row)
 
         self.result_text = QTextEdit()
@@ -171,6 +181,7 @@ class UpdatePage(QWidget):
             return
 
         self.btn_update.setEnabled(False)
+        self.btn_cancel.setVisible(True)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
         self.progress_bar.setMaximum(len(self._files))
@@ -192,8 +203,14 @@ class UpdatePage(QWidget):
         self.progress_bar.setValue(current)
         self.progress_label.setText(f"正在处理 ({current}/{total}): {filename}")
 
+    def _cancel_update(self):
+        if self.worker:
+            self.worker.cancel()
+            self.progress_label.setText("正在取消...")
+
     def _on_finished(self, results):
         self.btn_update.setEnabled(True)
+        self.btn_cancel.setVisible(False)
         self.progress_bar.setVisible(False)
         self.progress_label.setVisible(False)
         self.result_text.setVisible(True)
