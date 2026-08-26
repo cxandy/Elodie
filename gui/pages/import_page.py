@@ -137,7 +137,7 @@ class ImportPage(QWidget):
     def _select_files(self):
         files, _ = QFileDialog.getOpenFileNames(
             self, "选择照片文件", "",
-            "媒体文件 (*.jpg *.jpeg *.png *.dng *.nef *.heic *.arw *.cr2 "
+            "媒体文件 (*.jpg *.jpeg *.png *.bmp *.dng *.nef *.heic *.arw *.cr2 "
             "*.gif *.rw2 *.mp4 *.mov *.avi *.m4a *.txt);;所有文件 (*)"
         )
         if files:

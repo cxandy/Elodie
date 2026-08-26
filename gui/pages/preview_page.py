@@ -125,7 +125,7 @@ class PreviewPage(QWidget):
             vlayout.setSpacing(4)
 
             ext = os.path.splitext(filepath)[1][1:].lower()
-            if ext in ('jpg', 'jpeg', 'png', 'gif', 'heic', 'dng', 'nef', 'arw', 'cr2'):
+            if ext in ('jpg', 'jpeg', 'png', 'bmp', 'gif', 'heic', 'dng', 'nef', 'arw', 'cr2'):
                 thumb = self._create_thumbnail(filepath)
                 if thumb:
                     vlayout.addWidget(thumb, alignment=Qt.AlignmentFlag.AlignCenter)
