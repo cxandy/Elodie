@@ -8,6 +8,14 @@ from elodie.dependencies import get_exiftool
 from elodie.filesystem import FileSystem
 from elodie.media.base import get_all_subclasses
 from elodie.media.media import Media
+# Importing the concrete media subclasses registers them so that
+# get_all_subclasses() returns them and Media.get_class_by_file()
+# can recognize files. Without these imports every file is treated
+# as having no media class and silently skipped.
+from elodie.media.photo import Photo  # noqa: F401
+from elodie.media.video import Video  # noqa: F401
+from elodie.media.audio import Audio  # noqa: F401
+from elodie.media.text import Text  # noqa: F401
 
 FILESYSTEM = FileSystem()
 

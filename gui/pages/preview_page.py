@@ -179,6 +179,10 @@ class PreviewPage(QWidget):
         try:
             from elodie.media.base import Base, get_all_subclasses
             from elodie.media.media import Media
+            from elodie.media.photo import Photo  # noqa: F401
+            from elodie.media.video import Video  # noqa: F401
+            from elodie.media.audio import Audio  # noqa: F401
+            from elodie.media.text import Text  # noqa: F401
 
             media = Media.get_class_by_file(filepath, get_all_subclasses())
             if not media:
