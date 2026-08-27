@@ -17,6 +17,26 @@ import six
 from elodie.external.pyexiftool import ExifTool
 from elodie.media.base import Base
 
+_exiftool_instance = None
+
+
+def _get_exiftool():
+    """Return a started ExifTool singleton, creating it on first call."""
+    global _exiftool_instance
+    if _exiftool_instance is None or not _exiftool_instance.running:
+        from elodie import constants
+        from elodie.dependencies import get_exiftool
+        addedargs = [
+            u'-config',
+            u'"{}"'.format(constants.exiftool_config),
+        ]
+        _exiftool_instance = ExifTool(
+            executable_=get_exiftool(), addedargs=addedargs
+        )
+        _exiftool_instance.start()
+    return _exiftool_instance
+
+
 class Media(Base):
 
     """The base class for all media objects.
@@ -125,7 +145,7 @@ class Media(Base):
 
         #Cache exif metadata results and use if already exists for media
         if(self.exif_metadata is None):
-            self.exif_metadata = ExifTool().get_metadata(source)
+            self.exif_metadata = _get_exiftool().get_metadata(source)
 
         if not self.exif_metadata:
             return False
@@ -320,6 +340,6 @@ class Media(Base):
         source = self.source
 
         status = ''
-        status = ExifTool().set_tags(tags,source)
+        status = _get_exiftool().set_tags(tags,source)
 
         return status != ''
