@@ -169,6 +169,14 @@ def exiftool_place_name(lat, lon):
                     location_data['country'] = data['ExifTool:GeolocationCountry']
                     if 'default' not in location_data:
                         location_data['default'] = data['ExifTool:GeolocationCountry']
+
+                # Pass country_code for compound-key translation lookup
+                if 'ExifTool:GeolocationCountryCode' in data:
+                    location_data['country_code'] = data['ExifTool:GeolocationCountryCode']
+
+                # Pass subregion for compound-key translation lookup
+                if 'ExifTool:GeolocationSubregion' in data:
+                    location_data['subregion'] = data['ExifTool:GeolocationSubregion']
                 
                 if location_data:
                     from elodie.cn_locations import translate_location_dict
@@ -233,7 +241,8 @@ def place_name(lat, lon):
     # We check that it's a dict to coerce an upgrade of the location
     #  db from a string location to a dictionary. See gh-160.
     if(isinstance(cached_place_name, dict)):
-        return cached_place_name
+        from elodie.cn_locations import translate_location_dict
+        return translate_location_dict(cached_place_name)
 
     lookup_place_name = {}
     
