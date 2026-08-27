@@ -2,6 +2,7 @@
 from __future__ import print_function
 from __future__ import division
 
+import json
 from os import path
 
 import requests
@@ -123,16 +124,30 @@ def is_exiftool_available():
 
 
 def exiftool_coordinates_by_name(name):
-    """Look up coordinates for a location name using ExifTool's geolocation API."""
+    """Look up coordinates for a location name using Nominatim (OpenStreetMap), fallback to ExifTool."""
+    # Try Nominatim first (supports Chinese input)
+    try:
+        import urllib.request
+        import urllib.parse
+        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(name)}&format=json&accept-language=zh-CN&limit=1"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Elodie/1.0'})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if data and len(data) > 0:
+                return {
+                    'latitude': float(data[0]['lat']),
+                    'longitude': float(data[0]['lon'])
+                }
+    except Exception as e:
+        log.info(f"Nominatim lookup failed for '{name}', falling back to ExifTool: {e}")
+
+    # Fallback to ExifTool
     if not is_exiftool_available():
         return None
     
     try:
         et = ExifTool()
-        result = et.execute_json(
-            b"-api", f"geolocation={name}".encode('utf-8'),
-            b"-lang", b"zh"
-        )
+        result = et.execute_json(b"-api", f"geolocation={name}".encode('utf-8'))
         if result and len(result) > 0 and 'ExifTool:GeolocationPosition' in result[0]:
             position = result[0]['ExifTool:GeolocationPosition']
             # Position format is "lat lon"
@@ -148,17 +163,47 @@ def exiftool_coordinates_by_name(name):
 
 
 def exiftool_place_name(lat, lon):
-    """Look up place name for coordinates using ExifTool's geolocation API."""
+    """Look up place name for coordinates using Nominatim (OpenStreetMap) for Chinese names, fallback to ExifTool."""
+    # Try Nominatim first for Chinese names
+    try:
+        import urllib.request
+        import urllib.parse
+        url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&accept-language=zh-CN"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Elodie/1.0'})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            if 'address' in data:
+                addr = data['address']
+                location_data = {}
+                # Chinese city/town/village
+                for key in ['city', 'town', 'village', 'county']:
+                    if key in addr and addr[key].strip():
+                        location_data['city'] = addr[key]
+                        if 'default' not in location_data:
+                            location_data['default'] = addr[key]
+                        break
+                # Province/state
+                for key in ['state', 'region']:
+                    if key in addr and addr[key].strip():
+                        location_data['state'] = addr[key]
+                        if 'default' not in location_data:
+                            location_data['default'] = addr[key]
+                        break
+                # Country
+                if 'country' in addr and addr['country'].strip():
+                    location_data['country'] = addr['country']
+                if location_data:
+                    return location_data
+    except Exception as e:
+        log.info(f"Nominatim lookup failed, falling back to ExifTool: {e}")
+
+    # Fallback to ExifTool (returns English names)
     if not is_exiftool_available():
         return None
     
     try:
         et = ExifTool()
-        # Use ExifTool's reverse geolocation API with Chinese language
-        result = et.execute_json(
-            b"-api", f"geolocation={lat},{lon}".encode('utf-8'),
-            b"-lang", b"zh"
-        )
+        result = et.execute_json(b"-api", f"geolocation={lat},{lon}".encode('utf-8'))
         if result and len(result) > 0:
             data = result[0]
             location_data = {}
