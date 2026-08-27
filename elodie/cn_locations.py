@@ -1,0 +1,547 @@
+#!/usr/bin/env python3
+"""English-to-Chinese location mapping for Chinese provinces, cities, and common variants."""
+
+CN_LOCATIONS = {
+    # ── Provinces ──────────────────────────────────────────────
+    "Hebei": "河北", "Hebei Sheng": "河北",
+    "Shanxi": "山西", "Shanxi Sheng": "山西",
+    "Liaoning": "辽宁", "Liaoning Sheng": "辽宁",
+    "Jilin": "吉林", "Jilin Sheng": "吉林",
+    "Heilongjiang": "黑龙江", "Heilongjiang Sheng": "黑龙江",
+    "Jiangsu": "江苏", "Jiangsu Sheng": "江苏",
+    "Zhejiang": "浙江", "Zhejiang Sheng": "浙江",
+    "Anhui": "安徽", "Anhui Sheng": "安徽",
+    "Fujian": "福建", "Fujian Sheng": "福建",
+    "Jiangxi": "江西", "Jiangxi Sheng": "江西",
+    "Shandong": "山东", "Shandong Sheng": "山东",
+    "Henan": "河南", "Henan Sheng": "河南",
+    "Hubei": "湖北", "Hubei Sheng": "湖北",
+    "Hunan": "湖南", "Hunan Sheng": "湖南",
+    "Guangdong": "广东", "Guangdong Sheng": "广东",
+    "Hainan": "海南", "Hainan Sheng": "海南",
+    "Sichuan": "四川", "Sichuan Sheng": "四川",
+    "Guizhou": "贵州", "Guizhou Sheng": "贵州",
+    "Yunnan": "云南", "Yunnan Sheng": "云南",
+    "Shaanxi": "陕西", "Shaanxi Sheng": "陕西",
+    "Gansu": "甘肃", "Gansu Sheng": "甘肃",
+    "Qinghai": "青海", "Qinghai Sheng": "青海",
+    "Taiwan": "台湾", "Taiwan Sheng": "台湾",
+
+    # ── Autonomous regions ─────────────────────────────────────
+    "Guangxi": "广西", "Guangxi Zhuang Autonomous Region": "广西",
+    "Inner Mongolia": "内蒙古", "Inner Mongolia Autonomous Region": "内蒙古",
+    "Tibet": "西藏", "Tibet Autonomous Region": "西藏", "Xizang": "西藏",
+    "Ningxia": "宁夏", "Ningxia Hui Autonomous Region": "宁夏",
+    "Xinjiang": "新疆", "Xinjiang Uyghur Autonomous Region": "新疆",
+
+    # ── Municipalities ─────────────────────────────────────────
+    "Beijing": "北京", "Beijing Shi": "北京",
+    "Tianjin": "天津", "Tianjin Shi": "天津",
+    "Shanghai": "上海", "Shanghai Shi": "上海",
+    "Chongqing": "重庆", "Chongqing Shi": "重庆",
+
+    # ── SARs ───────────────────────────────────────────────────
+    "Hong Kong": "香港", "Hong Kong SAR": "香港", "Xianggang": "香港",
+    "Macau": "澳门", "Macau SAR": "澳门", "Macao": "澳门", "Aomen": "澳门",
+
+    # ── Provincial capitals ────────────────────────────────────
+    "Shijiazhuang": "石家庄", "Shijiazhuang Shi": "石家庄",
+    "Taiyuan": "太原", "Taiyuan Shi": "太原",
+    "Shenyang": "沈阳", "Shenyang Shi": "沈阳",
+    "Changchun": "长春", "Changchun Shi": "长春",
+    "Harbin": "哈尔滨", "Harbin Shi": "哈尔滨",
+    "Nanjing": "南京", "Nanjing Shi": "南京",
+    "Hangzhou": "杭州", "Hangzhou Shi": "杭州",
+    "Hefei": "合肥", "Hefei Shi": "合肥",
+    "Fuzhou": "福州", "Fuzhou Shi": "福州",
+    "Nanchang": "南昌", "Nanchang Shi": "南昌",
+    "Jinan": "济南", "Jinan Shi": "济南",
+    "Zhengzhou": "郑州", "Zhengzhou Shi": "郑州",
+    "Wuhan": "武汉", "Wuhan Shi": "武汉",
+    "Changsha": "长沙", "Changsha Shi": "长沙",
+    "Guangzhou": "广州", "Guangzhou Shi": "广州",
+    "Haikou": "海口", "Haikou Shi": "海口",
+    "Chengdu": "成都", "Chengdu Shi": "成都",
+    "Guiyang": "贵阳", "Guiyang Shi": "贵阳",
+    "Kunming": "昆明", "Kunming Shi": "昆明",
+    "Xi'an": "西安", "Xian": "西安", "Xi'an Shi": "西安",
+    "Lanzhou": "兰州", "Lanzhou Shi": "兰州",
+    "Xining": "西宁", "Xining Shi": "西宁",
+    "Nanning": "南宁", "Nanning Shi": "南宁",
+    "Hohhot": "呼和浩特", "Hohhot Shi": "呼和浩特", "Huhehaote": "呼和浩特",
+    "Lhasa": "拉萨", "Lhasa Shi": "拉萨", "Lasa": "拉萨",
+    "Yinchuan": "银川", "Yinchuan Shi": "银川",
+    "Urumqi": "乌鲁木齐", "Urumqi Shi": "乌鲁木齐", "Wulumuqi": "乌鲁木齐",
+
+    # ── Tier-2 / major cities ──────────────────────────────────
+    # Jiangsu
+    "Suzhou": "苏州", "Suzhou Shi": "苏州",
+    "Wuxi": "无锡", "Wuxi Shi": "无锡",
+    "Changzhou": "常州", "Changzhou Shi": "常州",
+    "Xuzhou": "徐州", "Xuzhou Shi": "徐州",
+    "Nantong": "南通", "Nantong Shi": "南通",
+    "Lianyungang": "连云港", "Lianyungang Shi": "连云港",
+    "Huai'an": "淮安", "Huai'an Shi": "淮安",
+    "Yancheng": "盐城", "Yancheng Shi": "盐城",
+    "Yangzhou": "扬州", "Yangzhou Shi": "扬州",
+    "Zhenjiang": "镇江", "Zhenjiang Shi": "镇江",
+    "Taizhou_Jiangsu": "泰州", "Taizhou Shi": "泰州",
+    "Suqian": "宿迁", "Suqian Shi": "宿迁",
+
+    # Zhejiang
+    "Ningbo": "宁波", "Ningbo Shi": "宁波",
+    "Wenzhou": "温州", "Wenzhou Shi": "温州",
+    "Shaoxing": "绍兴", "Shaoxing Shi": "绍兴",
+    "Jiaxing": "嘉兴", "Jiaxing Shi": "嘉兴",
+    "Huzhou": "湖州", "Huzhou Shi": "湖州",
+    "Jinhua": "金华", "Jinhua Shi": "金华",
+    "Quzhou": "衢州", "Quzhou Shi": "衢州",
+    "Zhoushan": "舟山", "Zhoushan Shi": "舟山",
+    "Taizhou_Zhejiang": "台州", "Taizhou Shi_Zhejiang": "台州",
+    "Lishui": "丽水", "Lishui Shi": "丽水",
+    "Yuyao": "余姚",
+
+    # Shandong
+    "Qingdao": "青岛", "Qingdao Shi": "青岛",
+    "Yantai": "烟台", "Yantai Shi": "烟台",
+    "Weifang": "潍坊", "Weifang Shi": "潍坊",
+    "Zibo": "淄博", "Zibo Shi": "淄博",
+    "Linyi": "临沂", "Linyi Shi": "临沂",
+    "Jining": "济宁", "Jining Shi": "济宁",
+    "Dezhou": "德州", "Dezhou Shi": "德州",
+    "Tai'an": "泰安", "Tai'an Shi": "泰安",
+    "Rizhao": "日照", "Rizhao Shi": "日照",
+    "Binzhou": "滨州", "Binzhou Shi": "滨州",
+    "Dongying": "东营", "Dongying Shi": "东营",
+    "Weihai": "威海", "Weihai Shi": "威海",
+    "Heze": "菏泽", "Heze Shi": "菏泽",
+    "Liaocheng": "聊城", "Liaocheng Shi": "聊城",
+
+    # Guangdong
+    "Shenzhen": "深圳", "Shenzhen Shi": "深圳",
+    "Dongguan": "东莞", "Dongguan Shi": "东莞",
+    "Foshan": "佛山", "Foshan Shi": "佛山",
+    "Zhongshan": "中山", "Zhongshan Shi": "中山",
+    "Zhuhai": "珠海", "Zhuhai Shi": "珠海",
+    "Huizhou": "惠州", "Huizhou Shi": "惠州",
+    "Jiangmen": "江门", "Jiangmen Shi": "江门",
+    "Zhaoqing": "肇庆", "Zhaoqing Shi": "肇庆",
+    "Shantou": "汕头", "Shantou Shi": "汕头",
+    "Maoming": "茂名", "Maoming Shi": "茂名",
+    "Zhanjiang": "湛江", "Zhanjiang Shi": "湛江",
+    "Meizhou": "梅州", "Meizhou Shi": "梅州",
+    "Chaozhou": "潮州", "Chaozhou Shi": "潮州",
+    "Jieyang": "揭阳", "Jieyang Shi": "揭阳",
+    "Yunfu": "云浮", "Yunfu Shi": "云浮",
+    "Heyuan": "河源", "Heyuan Shi": "河源",
+    "Qingyuan": "清远", "Qingyuan Shi": "清远",
+    "Shaoguan": "韶关", "Shaoguan Shi": "韶关",
+    "Shanwei": "汕尾", "Shanwei Shi": "汕尾",
+
+    # Sichuan
+    "Mianyang": "绵阳", "Mianyang Shi": "绵阳",
+    "Deyang": "德阳", "Deyang Shi": "德阳",
+    "Yibin": "宜宾", "Yibin Shi": "宜宾",
+    "Nanchong": "南充", "Nanchong Shi": "南充",
+    "Luzhou": "泸州", "Luzhou Shi": "泸州",
+    "Leshan": "乐山", "Leshan Shi": "乐山",
+    "Dazhou": "达州", "Dazhou Shi": "达州",
+    "Neijiang": "内江", "Neijiang Shi": "内江",
+    "Zigong": "自贡", "Zigong Shi": "自贡",
+    "Panzhihua": "攀枝花", "Panzhihua Shi": "攀枝花",
+    "Guang'an": "广安", "Guang'an Shi": "广安",
+    "Bazhong": "巴中", "Bazhong Shi": "巴中",
+    "Meishan": "眉山", "Meishan Shi": "眉山",
+    "Ziyang": "资阳", "Ziyang Shi": "资阳",
+
+    # Fujian
+    "Xiamen": "厦门", "Xiamen Shi": "厦门",
+    "Quanzhou": "泉州", "Quanzhou Shi": "泉州",
+    "Zhangzhou": "漳州", "Zhangzhou Shi": "漳州",
+    "Putian": "莆田", "Putian Shi": "莆田",
+    "Sanming": "三明", "Sanming Shi": "三明",
+    "Nanping": "南平", "Nanping Shi": "南平",
+    "Longyan": "龙岩", "Longyan Shi": "龙岩",
+    "Ningde": "宁德", "Ningde Shi": "宁德",
+
+    # Liaoning
+    "Dalian": "大连", "Dalian Shi": "大连",
+    "Anshan": "鞍山", "Anshan Shi": "鞍山",
+    "Fushun": "抚顺", "Fushun Shi": "抚顺",
+    "Benxi": "本溪", "Benxi Shi": "本溪",
+    "Dandong": "丹东", "Dandong Shi": "丹东",
+    "Jinzhou": "锦州", "Jinzhou Shi": "锦州",
+    "Yingkou": "营口", "Yingkou Shi": "营口",
+    "Fuxin": "阜新", "Fuxin Shi": "阜新",
+    "Liaoyang": "辽阳", "Liaoyang Shi": "辽阳",
+    "Panjin": "盘锦", "Panjin Shi": "盘锦",
+    "Tieling": "铁岭", "Tieling Shi": "铁岭",
+    "Chaoyang_Liaoning": "朝阳", "Chaoyang Shi": "朝阳",
+    "Huludao": "葫芦岛", "Huludao Shi": "葫芦岛",
+
+    # Heilongjiang
+    "Daqing": "大庆", "Daqing Shi": "大庆",
+    "Qiqihar": "齐齐哈尔", "Qiqihar Shi": "齐齐哈尔",
+    "Mudanjiang": "牡丹江", "Mudanjiang Shi": "牡丹江",
+    "Jiamusi": "佳木斯", "Jiamusi Shi": "佳木斯",
+    "Jixi": "鸡西", "Jixi Shi": "鸡西",
+    "Shuangyashan": "双鸭山", "Shuangyashan Shi": "双鸭山",
+    "Yichun_Heilongjiang": "伊春", "Yichun Shi": "伊春",
+    "Qitaihe": "七台河", "Qitaihe Shi": "七台河",
+    "Suihua": "绥化", "Suihua Shi": "绥化",
+    "Heihe": "黑河", "Heihe Shi": "黑河",
+    "Hegang": "鹤岗", "Hegang Shi": "鹤岗",
+    "Yichun_Heilongjiang": "伊春",
+
+    # Jilin
+    "Jilin": "吉林", "Jilin Shi": "吉林",
+    "Siping": "四平", "Siping Shi": "四平",
+    "Liaoyuan": "辽源", "Liaoyuan Shi": "辽源",
+    "Tonghua": "通化", "Tonghua Shi": "通化",
+    "Baishan": "白山", "Baishan Shi": "白山",
+    "Songyuan": "松原", "Songyuan Shi": "松原",
+    "Baicheng": "白城", "Baicheng Shi": "白城",
+
+    # Hubei
+    "Yichang": "宜昌", "Yichang Shi": "宜昌",
+    "Xiangyang": "襄阳", "Xiangyang Shi": "襄阳",
+    "Shiyan": "十堰", "Shiyan Shi": "十堰",
+    "Jingzhou": "荆州", "Jingzhou Shi": "荆州",
+    "Huangshi": "黄石", "Huangshi Shi": "黄石",
+    "Jingmen": "荆门", "Jingmen Shi": "荆门",
+    "Ezhou": "鄂州", "Ezhou Shi": "鄂州",
+    "Xiaogan": "孝感", "Xiaogan Shi": "孝感",
+    "Huanggang": "黄冈", "Huanggang Shi": "黄冈",
+    "Xianning": "咸宁", "Xianning Shi": "咸宁",
+    "Suizhou": "随州", "Suizhou Shi": "随州",
+
+    # Hunan
+    "Zhuzhou": "株洲", "Zhuzhou Shi": "株洲",
+    "Xiangtan": "湘潭", "Xiangtan Shi": "湘潭",
+    "Hengyang": "衡阳", "Hengyang Shi": "衡阳",
+    "Yueyang": "岳阳", "Yueyang Shi": "岳阳",
+    "Changde": "常德", "Changde Shi": "常德",
+    "Yiyang": "益阳", "Yiyang Shi": "益阳",
+    "Loudi": "娄底", "Loudi Shi": "娄底",
+    "Chenzhou": "郴州", "Chenzhou Shi": "郴州",
+    "Yongzhou": "永州", "Yongzhou Shi": "永州",
+    "Huaihua": "怀化", "Huaihua Shi": "怀化",
+    "Zhangjiajie": "张家界", "Zhangjiajie Shi": "张家界",
+    "Xiangxi": "湘西", "Xiangxi Tujia and Miao Autonomous Prefecture": "湘西",
+
+    # Henan
+    "Luoyang": "洛阳", "Luoyang Shi": "洛阳",
+    "Kaifeng": "开封", "Kaifeng Shi": "开封",
+    "Xinyang": "信阳", "Xinyang Shi": "信阳",
+    "Nanyang": "南阳", "Nanyang Shi": "南阳",
+    "Anyang": "安阳", "Anyang Shi": "安阳",
+    "Xinxiang": "新乡", "Xinxiang Shi": "新乡",
+    "Jiaozuo": "焦作", "Jiaozuo Shi": "焦作",
+    "Puyang": "濮阳", "Puyang Shi": "濮阳",
+    "Luohe": "漯河", "Luohe Shi": "漯河",
+    "Sanmenxia": "三门峡", "Sanmenxia Shi": "三门峡",
+    "Shangqiu": "商丘", "Shangqiu Shi": "商丘",
+    "Zhoukou": "周口", "Zhoukou Shi": "周口",
+    "Zhumadian": "驻马店", "Zhumadian Shi": "驻马店",
+    "Jiyuan": "济源", "Jiyuan Shi": "济源",
+    "Hebi": "鹤壁", "Hebi Shi": "鹤壁",
+    "Pingdingshan": "平顶山", "Pingdingshan Shi": "平顶山",
+    "Xuchang": "许昌", "Xuchang Shi": "许昌",
+
+    # Anhui
+    "Wuhu": "芜湖", "Wuhu Shi": "芜湖",
+    "Bengbu": "蚌埠", "Bengbu Shi": "蚌埠",
+    "Ma'anshan": "马鞍山", "Maanshan": "马鞍山", "Ma'anshan Shi": "马鞍山",
+    "Huainan": "淮南", "Huainan Shi": "淮南",
+    "Huaibei": "淮北", "Huaibei Shi": "淮北",
+    "Tongling": "铜陵", "Tongling Shi": "铜陵",
+    "Anqing": "安庆", "Anqing Shi": "安庆",
+    "Huangshan": "黄山", "Huangshan Shi": "黄山",
+    "Chuzhou": "滁州", "Chuzhou Shi": "滁州",
+    "Fuyang_Anhui": "阜阳", "Fuyang Shi": "阜阳",
+    "Liu'an": "六安", "Liu'an Shi": "六安",
+    "Bozhou": "亳州", "Bozhou Shi": "亳州",
+    "Chizhou": "池州", "Chizhou Shi": "池州",
+    "Xuancheng": "宣城", "Xuancheng Shi": "宣城",
+
+    # Hebei
+    "Tangshan": "唐山", "Tangshan Shi": "唐山",
+    "Handan": "邯郸", "Handan Shi": "邯郸",
+    "Baoding": "保定", "Baoding Shi": "保定",
+    "Zhangjiakou": "张家口", "Zhangjiakou Shi": "张家口",
+    "Chengde": "承德", "Chengde Shi": "承德",
+    "Qinhuangdao": "秦皇岛", "Qinhuangdao Shi": "秦皇岛",
+    "Cangzhou": "沧州", "Cangzhou Shi": "沧州",
+    "Langfang": "廊坊", "Langfang Shi": "廊坊",
+    "Hengshui": "衡水", "Hengshui Shi": "衡水",
+    "Xingtai": "邢台", "Xingtai Shi": "邢台",
+
+    # Shanxi
+    "Datong": "大同", "Datong Shi": "大同",
+    "Yangquan": "阳泉", "Yangquan Shi": "阳泉",
+    "Changzhi": "长治", "Changzhi Shi": "长治",
+    "Jincheng": "晋城", "Jincheng Shi": "晋城",
+    "Shuozhou": "朔州", "Shuozhou Shi": "朔州",
+    "Jinzhong": "晋中", "Jinzhong Shi": "晋中",
+    "Yuncheng": "运城", "Yuncheng Shi": "运城",
+    "Xinzhou": "忻州", "Xinzhou Shi": "忻州",
+    "Lüliang": "吕梁", "Lüliang Shi": "吕梁",
+
+    # Shaanxi
+    "Xianyang": "咸阳", "Xianyang Shi": "咸阳",
+    "Baoji": "宝鸡", "Baoji Shi": "宝鸡",
+    "Tongchuan": "铜川", "Tongchuan Shi": "铜川",
+    "Weinan": "渭南", "Weinan Shi": "渭南",
+    "Hanzhong": "汉中", "Hanzhong Shi": "汉中",
+    "Ankang": "安康", "Ankang Shi": "安康",
+    "Shangluo": "商洛", "Shangluo Shi": "商洛",
+    "Yan'an": "延安", "Yan'an Shi": "延安",
+    "Yulin_Shaanxi": "榆林", "Yulin Shi": "榆林",
+
+    # Yunnan
+    "Qujing": "曲靖", "Qujing Shi": "曲靖",
+    "Yuxi": "玉溪", "Yuxi Shi": "玉溪",
+    "Baoshan": "保山", "Baoshan Shi": "保山",
+    "Zhaotong": "昭通", "Zhaotong Shi": "昭通",
+    "Lijiang": "丽江", "Lijiang Shi": "丽江",
+    "Pu'er": "普洱", "Pu'er Shi": "普洱", "Puer": "普洱",
+    "Lincang": "临沧", "Lincang Shi": "临沧",
+    "Chuxiong": "楚雄", "Chuxiong Yi Autonomous Prefecture": "楚雄",
+    "Honghe": "红河", "Honghe Hani and Yi Autonomous Prefecture": "红河",
+    "Wenshan": "文山", "Wenshan Zhuang and Miao Autonomous Prefecture": "文山",
+    "Xishuangbanna": "西双版纳", "Xishuangbanna Dai Autonomous Prefecture": "西双版纳",
+    "Dali": "大理", "Dali Bai Autonomous Prefecture": "大理",
+    "Dehong": "德宏", "Dehong Dai and Jingpo Autonomous Prefecture": "德宏",
+    "Nujiang": "怒江", "Nujiang Lisu Autonomous Prefecture": "怒江",
+    "Diqing": "迪庆", "Diqing Tibetan Autonomous Prefecture": "迪庆",
+
+    # Guizhou
+    "Zunyi": "遵义", "Zunyi Shi": "遵义",
+    "Anshun": "安顺", "Anshun Shi": "安顺",
+    "Tongren": "铜仁", "Tongren Shi": "铜仁",
+    "Bijie": "毕节", "Bijie Shi": "毕节",
+    "Liupanshui": "六盘水", "Liupanshui Shi": "六盘水",
+    "Qiandongnan": "黔东南", "Qiandongnan Miao and Dong Autonomous Prefecture": "黔东南",
+    "Qiannan": "黔南", "Qiannan Buyei and Miao Autonomous Prefecture": "黔南",
+    "Qianxinan": "黔西南", "Qianxinan Buyei and Miao Autonomous Prefecture": "黔西南",
+
+    # Gansu
+    "Tianshui": "天水", "Tianshui Shi": "天水",
+    "Baiyin": "白银", "Baiyin Shi": "白银",
+    "Jinchang": "金昌", "Jinchang Shi": "金昌",
+    "Wuwei": "武威", "Wuwei Shi": "武威",
+    "Zhangye": "张掖", "Zhangye Shi": "张掖",
+    "Pingliang": "平凉", "Pingliang Shi": "平凉",
+    "Jiuquan": "酒泉", "Jiuquan Shi": "酒泉",
+    "Qingyang": "庆阳", "Qingyang Shi": "庆阳",
+    "Longnan": "陇南", "Longnan Shi": "陇南",
+    "Dingxi": "定西", "Dingxi Shi": "定西",
+    "Linxia": "临夏", "Linxia Hui Autonomous Prefecture": "临夏",
+    "Gannan": "甘南", "Gannan Tibetan Autonomous Prefecture": "甘南",
+
+    # Inner Mongolia
+    "Baotou": "包头", "Baotou Shi": "包头",
+    "Ordos": "鄂尔多斯", "Ordos Shi": "鄂尔多斯",
+    "Chifeng": "赤峰", "Chifeng Shi": "赤峰",
+    "Hulunbuir": "呼伦贝尔", "Hulunbuir Shi": "呼伦贝尔",
+    "Tongliao": "通辽", "Tongliao Shi": "通辽",
+    "Ulanqab": "乌兰察布", "Ulanqab Shi": "乌兰察布",
+    "Bayannur": "巴彦淖尔", "Bayannur Shi": "巴彦淖尔",
+    "Wuhai": "乌海", "Wuhai Shi": "乌海",
+    "Xilingol": "锡林郭勒", "Xilingol League": "锡林郭勒",
+    "Alxa": "阿拉善", "Alxa League": "阿拉善",
+    "Hinggan": "兴安", "Hinggan League": "兴安",
+
+    # Guangxi
+    "Liuzhou": "柳州", "Liuzhou Shi": "柳州",
+    "Guilin": "桂林", "Guilin Shi": "桂林",
+    "Wuzhou": "梧州", "Wuzhou Shi": "梧州",
+    "Beihai": "北海", "Beihai Shi": "北海",
+    "Yulin_Guangxi": "玉林", "Yulin Shi_Guangxi": "玉林",
+    "Qinzhou": "钦州", "Qinzhou Shi": "钦州",
+    "Guigang": "贵港", "Guigang Shi": "贵港",
+    "Baise": "百色", "Baise Shi": "百色",
+    "Hechi": "河池", "Hechi Shi": "河池",
+    "Laibin": "来宾", "Laibin Shi": "来宾",
+    "Chongzuo": "崇左", "Chongzuo Shi": "崇左",
+    "Fangchenggang": "防城港", "Fangchenggang Shi": "防城港",
+
+    # Xinjiang
+    "Kashgar": "喀什", "Kashi": "喀什", "Kashgar Shi": "喀什",
+    "Aksu": "阿克苏", "Aksu Shi": "阿克苏",
+    "Hotan": "和田", "Hetian": "和田", "Hotan Shi": "和田",
+    "Karamay": "克拉玛依", "Karamay Shi": "克拉玛依",
+    "Turpan": "吐鲁番", "Tulufan": "吐鲁番", "Turpan Shi": "吐鲁番",
+    "Hami": "哈密", "Hami Shi": "哈密",
+    "Changji": "昌吉", "Changji Hui Autonomous Prefecture": "昌吉",
+    "Bortala": "博尔塔拉", "Bortala Mongol Autonomous Prefecture": "博尔塔拉",
+    "Bayingolin": "巴音郭楞", "Bayingolin Mongol Autonomous Prefecture": "巴音郭楞",
+    "Ili": "伊犁", "Ili Kazakh Autonomous Prefecture": "伊犁",
+    "Tacheng": "塔城", "Tacheng Shi": "塔城",
+    "Altay": "阿勒泰", "Altay Shi": "阿勒泰",
+
+    # Qinghai
+    "Haidong": "海东", "Haidong Shi": "海东",
+    "Haibei": "海北", "Haibei Tibetan Autonomous Prefecture": "海北",
+    "Huangnan": "黄南", "Huangnan Tibetan Autonomous Prefecture": "黄南",
+    "Hainan_Qinghai": "海南_Qinghai", "Hainan Tibetan Autonomous Prefecture": "海南州",
+    "Golog": "果洛", "Golog Tibetan Autonomous Prefecture": "果洛",
+    "Yushu": "玉树", "Yushu Tibetan Autonomous Prefecture": "玉树",
+    "Haixi": "海西", "Haixi Mongol and Tibetan Autonomous Prefecture": "海西",
+
+    # Ningxia
+    "Shizuishan": "石嘴山", "Shizuishan Shi": "石嘴山",
+    "Wuzhong": "吴忠", "Wuzhong Shi": "吴忠",
+    "Zhongwei": "中卫", "Zhongwei Shi": "中卫",
+    "Guyuan": "固原", "Guyuan Shi": "固原",
+
+    # Taiwan
+    "Taipei": "台北", "Taipei Shi": "台北",
+    "Kaohsiung": "高雄", "Kaohsiung Shi": "高雄",
+    "Taichung": "台中", "Taichung Shi": "台中",
+    "Tainan": "台南", "Tainan Shi": "台南",
+    "Taoyuan_Taiwan": "桃园", "Taoyuan Shi": "桃园",
+    "Hsinchu": "新竹", "Hsinchu Shi": "新竹",
+    "Keelung": "基隆", "Keelung Shi": "基隆",
+    "Chiayi": "嘉义", "Chiayi Shi": "嘉义",
+    "Pingtung": "屏东", "Pingtung Shi": "屏东",
+    "Yilan_Taiwan": "宜兰", "Yilan Shi": "宜兰",
+    "Hualien": "花莲", "Hualien Shi": "花莲",
+    "Taitung": "台东", "Taitung Shi": "台东",
+    "Changhua": "彰化", "Changhua Shi": "彰化",
+    "Nantou_Taiwan": "南投", "Nantou Shi": "南投",
+    "Miaoli": "苗栗", "Miaoli Shi": "苗栗",
+    "Yunlin": "云林", "Yunlin Shi": "云林",
+
+    # ── Common EXIFTool / GeoNames variants ────────────────────
+    "Guangdong Sheng": "广东",
+    "Fujian Sheng": "福建",
+    "Sichuan Sheng": "四川",
+    "Hubei Sheng": "湖北",
+    "Hebei Sheng": "河北",
+    "Hunan Sheng": "湖南",
+    "Liaoning Sheng": "辽宁",
+    "Yunnan Sheng": "云南",
+    "Shaanxi Sheng": "陕西",
+    "Shandong Sheng": "山东",
+    "Henan Sheng": "河南",
+    "Shanxi Sheng": "山西",
+    "Anhui Sheng": "安徽",
+    "Guizhou Sheng": "贵州",
+    "Gansu Sheng": "甘肃",
+    "Jiangxi Sheng": "江西",
+    "Heilongjiang Sheng": "黑龙江",
+    "Jilin Sheng": "吉林",
+    "Jiangsu Sheng": "江苏",
+    "Hainan Sheng": "海南",
+    "Qinghai Sheng": "青海",
+    "Taiwan Sheng": "台湾",
+    "Inner Mongolia Autonomous Region": "内蒙古",
+    "Guangxi Zhuang Autonomous Region": "广西",
+    "Tibet Autonomous Region": "西藏",
+    "Ningxia Hui Autonomous Region": "宁夏",
+    "Xinjiang Uyghur Autonomous Region": "新疆",
+
+    # Hyphenated / alternate city names
+    "Qingdao Shi": "青岛",
+    "Dalian Shi": "大连",
+    "Ningbo Shi": "宁波",
+    "Xiamen Shi": "厦门",
+    "Shenzhen Shi": "深圳",
+    "Zhuhai Shi": "珠海",
+    "Suzhou Shi": "苏州",
+    "Wuxi Shi": "无锡",
+    "Changzhou Shi": "常州",
+    "Foshan Shi": "佛山",
+    "Dongguan Shi": "东莞",
+    "Wenzhou Shi": "温州",
+    "Yantai Shi": "烟台",
+    "Weifang Shi": "潍坊",
+    "Qinhuangdao Shi": "秦皇岛",
+
+    # Tier-3 / notable cities
+    "Zhangjiakou Shi": "张家口",
+    "Baoding Shi": "保定",
+    "Tangshan Shi": "唐山",
+    "Handan Shi": "邯郸",
+    "Langfang Shi": "廊坊",
+    "Datong Shi": "大同",
+    "Changzhi Shi": "长治",
+    "Jinzhou Shi": "锦州",
+    "Anshan Shi": "鞍山",
+    "Fushun Shi": "抚顺",
+    "Yingkou Shi": "营口",
+    "Liaoyang Shi": "辽阳",
+    "Qiqihar Shi": "齐齐哈尔",
+    "Mudanjiang Shi": "牡丹江",
+    "Jiamusi Shi": "佳木斯",
+    "Siping Shi": "四平",
+    "Tonghua Shi": "通化",
+    "Yichang Shi": "宜昌",
+    "Xiangyang Shi": "襄阳",
+    "Shiyan Shi": "十堰",
+    "Jingzhou Shi": "荆州",
+    "Zhuzhou Shi": "株洲",
+    "Xiangtan Shi": "湘潭",
+    "Hengyang Shi": "衡阳",
+    "Yueyang Shi": "岳阳",
+    "Changde Shi": "常德",
+    "Luoyang Shi": "洛阳",
+    "Kaifeng Shi": "开封",
+    "Nanyang Shi": "南阳",
+    "Anyang Shi": "安阳",
+    "Xinxiang Shi": "新乡",
+    "Wuhu Shi": "芜湖",
+    "Bengbu Shi": "蚌埠",
+    "Huainan Shi": "淮南",
+    "Anqing Shi": "安庆",
+    "Qujing Shi": "曲靖",
+    "Lijiang Shi": "丽江",
+    "Zunyi Shi": "遵义",
+    "Tianshui Shi": "天水",
+    "Baotou Shi": "包头",
+    "Ordos Shi": "鄂尔多斯",
+    "Chifeng Shi": "赤峰",
+    "Liuzhou Shi": "柳州",
+    "Guilin Shi": "桂林",
+    "Beihai Shi": "北海",
+    "Karamay Shi": "克拉玛依",
+    "Haidong Shi": "海东",
+}
+
+
+def translate_location(english_name):
+    """Translate an English location name to Chinese.
+
+    Args:
+        english_name: English location name string.
+
+    Returns:
+        Chinese name if found in the dictionary, otherwise the original English name.
+    """
+    if not english_name:
+        return english_name
+    return CN_LOCATIONS.get(english_name, english_name)
+
+
+def translate_location_dict(location_dict):
+    """Translate all string values in a location dict from English to Chinese.
+
+    Expects keys like 'city', 'state', 'country'.  Values that are not strings
+    or that have no mapping are left unchanged.
+
+    Args:
+        location_dict: dict with location-related string values.
+
+    Returns:
+        New dict with translated values (original dict is not mutated).
+    """
+    if not location_dict:
+        return location_dict
+    result = {}
+    for key, value in location_dict.items():
+        if isinstance(value, str):
+            result[key] = translate_location(value)
+        else:
+            result[key] = value
+    return result

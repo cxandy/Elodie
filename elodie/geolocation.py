@@ -113,10 +113,9 @@ def is_exiftool_available():
         return __EXIFTOOL_AVAILABLE__
     
     try:
-        et = ExifTool()
-        # Test if geolocation database is available by doing a simple lookup
-        result = et.execute_json(b"-api", b"geolocation=40.7128,-74.0060")  # NYC coordinates
-        __EXIFTOOL_AVAILABLE__ = result and len(result) > 0 and 'ExifTool:GeolocationCity' in result[0]
+        with ExifTool() as et:
+            result = et.execute_json(b"-api", b"geolocation=40.7128,-74.0060")
+            __EXIFTOOL_AVAILABLE__ = result and len(result) > 0 and 'ExifTool:GeolocationCity' in result[0]
     except Exception:
         __EXIFTOOL_AVAILABLE__ = False
     
@@ -124,38 +123,20 @@ def is_exiftool_available():
 
 
 def exiftool_coordinates_by_name(name):
-    """Look up coordinates for a location name using Nominatim (OpenStreetMap), fallback to ExifTool."""
-    # Try Nominatim first (supports Chinese input)
-    try:
-        import urllib.request
-        import urllib.parse
-        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(name)}&format=json&accept-language=zh-CN&limit=1"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Elodie/1.0'})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            if data and len(data) > 0:
-                return {
-                    'latitude': float(data[0]['lat']),
-                    'longitude': float(data[0]['lon'])
-                }
-    except Exception as e:
-        log.info(f"Nominatim lookup failed for '{name}', falling back to ExifTool: {e}")
-
-    # Fallback to ExifTool
+    """Look up coordinates for a location name using ExifTool."""
     if not is_exiftool_available():
         return None
     
     try:
-        et = ExifTool()
-        result = et.execute_json(b"-api", f"geolocation={name}".encode('utf-8'))
-        if result and len(result) > 0 and 'ExifTool:GeolocationPosition' in result[0]:
-            position = result[0]['ExifTool:GeolocationPosition']
-            # Position format is "lat lon"
-            lat, lon = position.split()
-            return {
-                'latitude': float(lat),
-                'longitude': float(lon)
-            }
+        with ExifTool() as et:
+            result = et.execute_json(b"-api", f"geolocation={name}".encode('utf-8'))
+            if result and len(result) > 0 and 'ExifTool:GeolocationPosition' in result[0]:
+                position = result[0]['ExifTool:GeolocationPosition']
+                lat, lon = position.split()
+                return {
+                    'latitude': float(lat),
+                    'longitude': float(lon)
+                }
     except Exception as e:
         log.error(f"ExifTool geolocation lookup failed: {e}")
     
@@ -163,69 +144,35 @@ def exiftool_coordinates_by_name(name):
 
 
 def exiftool_place_name(lat, lon):
-    """Look up place name for coordinates using Nominatim (OpenStreetMap) for Chinese names, fallback to ExifTool."""
-    # Try Nominatim first for Chinese names
-    try:
-        import urllib.request
-        import urllib.parse
-        url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&accept-language=zh-CN"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Elodie/1.0'})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            if 'address' in data:
-                addr = data['address']
-                location_data = {}
-                # Chinese city/town/village
-                for key in ['city', 'town', 'village', 'county']:
-                    if key in addr and addr[key].strip():
-                        location_data['city'] = addr[key]
-                        if 'default' not in location_data:
-                            location_data['default'] = addr[key]
-                        break
-                # Province/state
-                for key in ['state', 'region']:
-                    if key in addr and addr[key].strip():
-                        location_data['state'] = addr[key]
-                        if 'default' not in location_data:
-                            location_data['default'] = addr[key]
-                        break
-                # Country
-                if 'country' in addr and addr['country'].strip():
-                    location_data['country'] = addr['country']
-                if location_data:
-                    return location_data
-    except Exception as e:
-        log.info(f"Nominatim lookup failed, falling back to ExifTool: {e}")
-
-    # Fallback to ExifTool (returns English names)
+    """Look up place name for coordinates using ExifTool, then translate to Chinese."""
     if not is_exiftool_available():
         return None
     
     try:
-        et = ExifTool()
-        result = et.execute_json(b"-api", f"geolocation={lat},{lon}".encode('utf-8'))
-        if result and len(result) > 0:
-            data = result[0]
-            location_data = {}
-            
-            # Build location data following the priority: City, Region, Subregion, Country
-            if 'ExifTool:GeolocationCity' in data and data['ExifTool:GeolocationCity'].strip():
-                location_data['city'] = data['ExifTool:GeolocationCity']
-                if 'default' not in location_data:
-                    location_data['default'] = data['ExifTool:GeolocationCity']
-            
-            if 'ExifTool:GeolocationRegion' in data and data['ExifTool:GeolocationRegion'].strip():
-                location_data['state'] = data['ExifTool:GeolocationRegion']
-                if 'default' not in location_data:
-                    location_data['default'] = data['ExifTool:GeolocationRegion']
-            
-            if 'ExifTool:GeolocationCountry' in data and data['ExifTool:GeolocationCountry'].strip():
-                location_data['country'] = data['ExifTool:GeolocationCountry']
-                if 'default' not in location_data:
-                    location_data['default'] = data['ExifTool:GeolocationCountry']
-            
-            if location_data:
-                return location_data
+        with ExifTool() as et:
+            result = et.execute_json(b"-api", f"geolocation={lat},{lon}".encode('utf-8'))
+            if result and len(result) > 0:
+                data = result[0]
+                location_data = {}
+                
+                if 'ExifTool:GeolocationCity' in data and data['ExifTool:GeolocationCity'].strip():
+                    location_data['city'] = data['ExifTool:GeolocationCity']
+                    if 'default' not in location_data:
+                        location_data['default'] = data['ExifTool:GeolocationCity']
+                
+                if 'ExifTool:GeolocationRegion' in data and data['ExifTool:GeolocationRegion'].strip():
+                    location_data['state'] = data['ExifTool:GeolocationRegion']
+                    if 'default' not in location_data:
+                        location_data['default'] = data['ExifTool:GeolocationRegion']
+                
+                if 'ExifTool:GeolocationCountry' in data and data['ExifTool:GeolocationCountry'].strip():
+                    location_data['country'] = data['ExifTool:GeolocationCountry']
+                    if 'default' not in location_data:
+                        location_data['default'] = data['ExifTool:GeolocationCountry']
+                
+                if location_data:
+                    from elodie.cn_locations import translate_location_dict
+                    return translate_location_dict(location_data)
                 
     except Exception as e:
         log.error(f"ExifTool place name lookup failed: {e}")
