@@ -129,7 +129,10 @@ def exiftool_coordinates_by_name(name):
     
     try:
         et = ExifTool()
-        result = et.execute_json(b"-api", f"geolocation={name}".encode('utf-8'))
+        result = et.execute_json(
+            b"-api", f"geolocation={name}".encode('utf-8'),
+            b"-lang", b"zh"
+        )
         if result and len(result) > 0 and 'ExifTool:GeolocationPosition' in result[0]:
             position = result[0]['ExifTool:GeolocationPosition']
             # Position format is "lat lon"
@@ -151,8 +154,11 @@ def exiftool_place_name(lat, lon):
     
     try:
         et = ExifTool()
-        # Use ExifTool's reverse geolocation API
-        result = et.execute_json(b"-api", f"geolocation={lat},{lon}".encode('utf-8'))
+        # Use ExifTool's reverse geolocation API with Chinese language
+        result = et.execute_json(
+            b"-api", f"geolocation={lat},{lon}".encode('utf-8'),
+            b"-lang", b"zh"
+        )
         if result and len(result) > 0:
             data = result[0]
             location_data = {}
