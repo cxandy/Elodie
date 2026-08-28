@@ -77,13 +77,6 @@ class PreviewPage(QWidget):
         title.setStyleSheet("font-size: 18px; font-weight: bold;")
         layout.addWidget(title)
 
-        toolbar = QHBoxLayout()
-        btn_open = QPushButton("打开文件夹")
-        btn_open.clicked.connect(self._open_folder)
-        toolbar.addWidget(btn_open)
-        toolbar.addStretch()
-        layout.addLayout(toolbar)
-
         self._stack = QStackedWidget()
 
         # Page 0: loading overlay
@@ -108,6 +101,12 @@ class PreviewPage(QWidget):
         layout.addWidget(self._stack)
 
         pager = QHBoxLayout()
+
+        btn_open = QPushButton("打开文件夹")
+        btn_open.clicked.connect(self._open_folder)
+        pager.addWidget(btn_open)
+
+        pager.addStretch()
 
         self.btn_first = QPushButton("首页")
         self.btn_first.clicked.connect(self._first_page)
