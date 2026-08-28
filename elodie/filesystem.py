@@ -27,8 +27,8 @@ class FileSystem(object):
     def __init__(self):
         # The default folder path is along the lines of 2017-06-17_01-04-14-dsc_1234-some-title.jpg
         self.default_file_name_definition = {
-            'date': '%Y-%m-%d_%H-%M-%S',
-            'name': '%date-%original_name-%title.%extension',
+            'time': '%H-%M-%S',
+            'name': '%time-%original_name-%title.%extension',
         }
         # The default folder path is along the lines of 2015-01-Jan/Chicago
         self.default_folder_path_definition = {
@@ -160,7 +160,7 @@ class FileSystem(object):
             return None
 
         # Get the name template and definition.
-        # Name template is in the form %date-%original_name-%title.%extension
+        # Name template is in the form %time-%original_name-%title.%extension
         # Definition is in the form
         #  [
         #    [('date', '%Y-%m-%d_%H-%M-%S')],
@@ -279,7 +279,7 @@ class FileSystem(object):
 
         # Find all subpatterns of name that map to the components of the file's
         #  name.
-        #  I.e. %date-%original_name-%title.%extension => ['date', 'original_name', 'title', 'extension'] #noqa
+        #  I.e. %time-%original_name-%title.%extension => ['time', 'original_name', 'title', 'extension'] #noqa
         path_parts = re.findall(
                          '(\%[a-z_]+)',
                          config_file['name']

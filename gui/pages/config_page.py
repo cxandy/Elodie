@@ -23,8 +23,8 @@ month=%m
 full_path=%year/%month/%album|"家庭照片"
 
 [File]
-date=%Y-%m-%d_%H-%M-%S
-name=%date-%original_name.%extension
+time=%H-%M-%S
+name=%time-%original_name.%extension
 """,
     "旅行照片": """[Directory]
 year=%Y
@@ -33,8 +33,8 @@ location=%city, %state
 full_path=%year/%month/%album|%location|"旅行照片"
 
 [File]
-date=%Y-%m-%d_%H-%M-%S
-name=%date-%original_name.%extension
+time=%H-%M-%S
+name=%time-%original_name.%extension
 """,
     "简洁模式": """[Directory]
 year=%Y
@@ -42,16 +42,16 @@ month=%m
 full_path=%year/%month
 
 [File]
-date=%Y-%m-%d_%H-%M-%S
-name=%date-%original_name.%extension
+time=%H-%M-%S
+name=%time-%original_name.%extension
 """,
     "按日期分类": """[Directory]
 date=%Y-%m-%d
 full_path=%date
 
 [File]
-date=%Y-%m-%d_%H-%M-%S
-name=%date-%original_name.%extension
+time=%H-%M-%S
+name=%time-%original_name.%extension
 """,
     "专业模式": """[Directory]
 year=%Y
@@ -59,8 +59,8 @@ camera=%camera_make %camera_model
 full_path=%year/%camera
 
 [File]
-date=%Y-%m-%d_%H-%M-%S
-name=%date-%original_name-%title.%extension
+time=%H-%M-%S
+name=%time-%original_name-%title.%extension
 """,
     "按地点分类": """[Directory]
 location=%city, %state
@@ -68,8 +68,8 @@ year=%Y
 full_path=%location/%year
 
 [File]
-date=%Y-%m-%d_%H-%M-%S
-name=%date-%original_name.%extension
+time=%H-%M-%S
+name=%time-%original_name.%extension
 """,
 }
 
@@ -132,20 +132,20 @@ HELP_TEXT = """\
 
 关键配置项:
   name             文件名模板
-  date             日期格式（用于文件名中的 %date）
+  time             时间格式（用于文件名中的 %time）
   capitalization   设为 upper 则文件名大写
 
 占位符:
-  %date            日期（由上方 date 定义）
+  %time            时间（由上方 time 定义）
   %original_name   原始文件名
   %title           标题（来自 EXIF）
   %extension       文件扩展名
 
 示例:
   [File]
-  date=%Y-%m-%d_%H-%M-%S
-  name=%date-%original_name-%title.%extension
-  # 结果: 2024-01-15_10-30-00-img_1234-my-title.jpg
+  time=%H-%M-%S
+  name=%time-%original_name-%title.%extension
+  # 结果: 10-30-00-img_1234-my-title.jpg
 
 ━━━ [Exclusions] 排除规则 ━━━
 
@@ -310,8 +310,8 @@ location=%city
 full_path=%date/%album|%location|"Unknown Location"
 
 [File]
-date=%Y-%m-%d_%H-%M-%S
-name=%date-%original_name-%title.%extension
+time=%H-%M-%S
+name=%time-%original_name-%title.%extension
 """
             self.config_editor.setText(default_config)
 
