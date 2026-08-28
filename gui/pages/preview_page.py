@@ -59,10 +59,12 @@ class PreviewPage(QWidget):
         self._spin_timer = QTimer(self)
         self._spin_timer.setInterval(60)
         self._spin_timer.timeout.connect(self._animate_spinners)
+        self._cols = 4
+        self._thumb_height = 180
+        self._thumb_width = 180
         self._name_font = QFont()
         self._name_font.setPointSizeF(8.0)
         self._font_metrics = QFontMetrics(self._name_font)
-        self._name_max_width = 112
         self._setup_ui()
 
     def _setup_ui(self):
@@ -163,33 +165,35 @@ class PreviewPage(QWidget):
         decode_exts = ('jpg', 'jpeg', 'png', 'bmp', 'gif', 'heic')
         raw_exts = ('dng', 'nef', 'arw', 'cr2', 'rw2')
 
-        cols = 4
+        thumb_w = self._thumb_width
+        thumb_h = self._thumb_height
+        cols = self._cols
+        for col_idx in range(cols):
+            self.grid_layout.setColumnMinimumWidth(col_idx, thumb_w + 12)
+
         for cell, filepath in enumerate(page_files):
             frame = QFrame()
             frame.setFrameShape(QFrame.Shape.Box)
             frame.setStyleSheet(
-                "QFrame { border: 1px solid #ddd; border-radius: 4px; "
-                "padding: 4px; }"
+                "QFrame { border: 1px solid #ddd; border-radius: 6px; }"
                 "QFrame:hover { border-color: #2196F3; }"
             )
 
             vlayout = QVBoxLayout(frame)
+            vlayout.setContentsMargins(6, 6, 6, 6)
             vlayout.setSpacing(4)
 
             ext = os.path.splitext(filepath)[1][1:].lower()
             if ext in decode_exts:
                 spinner = QLabel()
                 spinner.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                spinner.setFixedSize(120, 120)
+                spinner.setFixedSize(thumb_w, thumb_h)
                 spinner.setPixmap(self._draw_spinner_pixmap(self._spin_angle))
                 vlayout.addWidget(spinner, alignment=Qt.AlignmentFlag.AlignCenter)
                 self._thumb_slots[cell] = spinner
                 self._thread_pool.start(
                     _ThumbnailTask(self._thumb_signals, generation, cell, filepath)
                 )
-            elif ext in raw_exts:
-                icon_label = self._create_media_icon(ext)
-                vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
             else:
                 icon_label = self._create_media_icon(ext)
                 vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -197,16 +201,16 @@ class PreviewPage(QWidget):
             name_label = QLabel()
             name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             full_name = os.path.basename(filepath)
-            max_w = self._name_max_width
-            if full_name and self._font_metrics.horizontalAdvance(full_name) > max_w:
+            if full_name and self._font_metrics.horizontalAdvance(full_name) > thumb_w:
                 elided = self._font_metrics.elidedText(
-                    full_name, Qt.TextElideMode.ElideMiddle, max_w
+                    full_name, Qt.TextElideMode.ElideMiddle, thumb_w
                 )
                 name_label.setText(elided)
             else:
                 name_label.setText(full_name)
             name_label.setToolTip(full_name)
             name_label.setStyleSheet("font-size: 11px; color: #333;")
+            name_label.setMaximumWidth(thumb_w)
             vlayout.addWidget(name_label)
 
             frame.mousePressEvent = lambda e, p=filepath: self._show_info(p)
@@ -263,8 +267,10 @@ class PreviewPage(QWidget):
         if not self._thumb_slots:
             self._spin_timer.stop()
 
-    def _draw_spinner_pixmap(self, angle, size=48):
+    def _draw_spinner_pixmap(self, angle, size=None):
         """Draw a single rotating-arc loading spinner at the given angle."""
+        if size is None:
+            size = self._thumb_height
         pm = QPixmap(size, size)
         pm.fill(Qt.GlobalColor.transparent)
         painter = QPainter(pm)
@@ -337,8 +343,7 @@ class PreviewPage(QWidget):
         except Exception:
             return None
 
-    @staticmethod
-    def _bytes_to_pixmap(data):
+    def _bytes_to_pixmap(self, data):
         """Convert raw image bytes to a scaled QPixmap (main thread only)."""
         try:
             if not data:
@@ -347,7 +352,8 @@ class PreviewPage(QWidget):
             if image.isNull():
                 return None
             return QPixmap.fromImage(image).scaled(
-                QSize(120, 120), Qt.AspectRatioMode.KeepAspectRatio,
+                QSize(self._thumb_width, self._thumb_height),
+                Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
         except Exception:
@@ -375,7 +381,7 @@ class PreviewPage(QWidget):
             bg_color, fg_color = QColor('#607D8B'), QColor('#FFFFFF')
             label_text = ext.upper()
 
-        size = 120
+        size = self._thumb_height
         pixmap = QPixmap(size, size)
         pixmap.fill(Qt.GlobalColor.transparent)
 
@@ -390,15 +396,16 @@ class PreviewPage(QWidget):
             painter.setPen(QPen(fg_color, 0))
             painter.setBrush(QBrush(fg_color))
             cx, cy = float(size) / 2, float(size) / 2
+            s = size / 120.0
             tri = QPolygonF([
-                QPointF(cx - 12, cy - 18),
-                QPointF(cx + 16, cy),
-                QPointF(cx - 12, cy + 18),
+                QPointF(cx - 12 * s, cy - 18 * s),
+                QPointF(cx + 16 * s, cy),
+                QPointF(cx - 12 * s, cy + 18 * s),
             ])
             painter.drawPolygon(tri)
         else:
             font = QFont()
-            font.setPointSize(20)
+            font.setPointSize(max(16, int(20 * size / 120)))
             font.setBold(True)
             painter.setFont(font)
             painter.setPen(QPen(fg_color))
@@ -410,7 +417,8 @@ class PreviewPage(QWidget):
 
         label = QLabel()
         label.setPixmap(
-            pixmap.scaled(QSize(120, 120), Qt.AspectRatioMode.KeepAspectRatio,
+            pixmap.scaled(QSize(self._thumb_width, self._thumb_height),
+                          Qt.AspectRatioMode.KeepAspectRatio,
                           Qt.TransformationMode.SmoothTransformation)
         )
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
