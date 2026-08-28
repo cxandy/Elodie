@@ -5,7 +5,7 @@ import os
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFileDialog, QTextEdit, QGroupBox,
-    QGridLayout, QScrollArea, QFrame,
+    QGridLayout, QScrollArea, QFrame, QStackedWidget,
 )
 from PySide6.QtCore import (
     Qt, QSize, QRectF, QPointF, QThreadPool, QRunnable,
@@ -50,7 +50,8 @@ class PreviewPage(QWidget):
         self._current_page = 0
         self._page_size = 40
         self._generation = 0
-        self._thumb_slots = {}
+        self._pending_cells = {}
+        self._thumb_data = {}
         self._thread_pool = QThreadPool(self)
         self._thread_pool.setMaxThreadCount(4)
         self._thumb_signals = _ThumbnailSignals(self)
@@ -82,14 +83,28 @@ class PreviewPage(QWidget):
         toolbar.addStretch()
         layout.addLayout(toolbar)
 
+        self._stack = QStackedWidget()
+
+        # Page 0: loading overlay
+        self._loading_label = QLabel()
+        self._loading_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._loading_label.setText("加载中...")
+        self._loading_label.setStyleSheet(
+            "font-size: 16px; color: #888; padding: 40px;"
+        )
+        self._stack.addWidget(self._loading_label)
+
+        # Page 1: scroll area with grid
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
-
         self.grid_widget = QWidget()
         self.grid_layout = QGridLayout(self.grid_widget)
         self.grid_layout.setSpacing(8)
         self.scroll_area.setWidget(self.grid_widget)
-        layout.addWidget(self.scroll_area)
+        self._stack.addWidget(self.scroll_area)
+
+        self._stack.setCurrentIndex(1)
+        layout.addWidget(self._stack)
 
         pager = QHBoxLayout()
         self.btn_prev = QPushButton("上一页")
@@ -148,6 +163,7 @@ class PreviewPage(QWidget):
             self.scroll_area.verticalScrollBar().setValue(0)
 
     def _render_grid(self):
+        # Clear old grid
         while self.grid_layout.count():
             item = self.grid_layout.takeAt(0)
             widget = item.widget()
@@ -156,14 +172,14 @@ class PreviewPage(QWidget):
 
         self._generation += 1
         generation = self._generation
-        self._thumb_slots = {}
+        self._pending_cells = {}
+        self._thumb_data = {}
 
         start = self._current_page * self._page_size
         end = start + self._page_size
         page_files = self._files[start:end]
 
         decode_exts = ('jpg', 'jpeg', 'png', 'bmp', 'gif', 'heic')
-        raw_exts = ('dng', 'nef', 'arw', 'cr2', 'rw2')
 
         thumb_w = self._thumb_width
         thumb_h = self._thumb_height
@@ -185,15 +201,8 @@ class PreviewPage(QWidget):
 
             ext = os.path.splitext(filepath)[1][1:].lower()
             if ext in decode_exts:
-                spinner = QLabel()
-                spinner.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                spinner.setFixedSize(thumb_w, thumb_h)
-                spinner.setPixmap(self._draw_spinner_pixmap(self._spin_angle))
-                vlayout.addWidget(spinner, alignment=Qt.AlignmentFlag.AlignCenter)
-                self._thumb_slots[cell] = spinner
-                self._thread_pool.start(
-                    _ThumbnailTask(self._thumb_signals, generation, cell, filepath)
-                )
+                self._pending_cells[cell] = filepath
+                self._thumb_data[cell] = None
             else:
                 icon_label = self._create_media_icon(ext)
                 vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -217,7 +226,16 @@ class PreviewPage(QWidget):
             col = cell % cols
             self.grid_layout.addWidget(frame, row, col)
 
-        self._ensure_spin_timer()
+        if self._pending_cells:
+            self._stack.setCurrentIndex(0)
+            self._spin_angle = 0
+            self._spin_timer.start()
+            for cell, filepath in self._pending_cells.items():
+                self._thread_pool.start(
+                    _ThumbnailTask(self._thumb_signals, generation, cell, filepath)
+                )
+        else:
+            self._stack.setCurrentIndex(1)
 
         total = self._total_pages()
         self.page_label.setText(
@@ -228,42 +246,46 @@ class PreviewPage(QWidget):
 
         if not self._files:
             self.info_text.setText("未找到文件。请打开一个文件夹。")
-            self._spin_timer.stop()
 
     def _on_thumbnail_ready(self, generation, cell, image_bytes):
-        """Replace a spinner with the decoded thumbnail once it's ready.
-
-        ``image_bytes`` is raw image data (JPEG/PNG/BMP/GIF bytes) from the
-        worker thread.  We must convert to QPixmap on the main thread.
-        """
+        """Receive decoded thumbnail bytes and populate grid when all done."""
         if generation != self._generation:
             return
-        slot = self._thumb_slots.pop(cell, None)
-        if slot is None:
-            return
-        vlayout = slot.parentWidget().layout()
         if image_bytes is not None:
-            pixmap = self._bytes_to_pixmap(image_bytes)
-            if pixmap is not None and not pixmap.isNull():
-                label = QLabel()
-                label.setPixmap(pixmap)
-                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                vlayout.replaceWidget(slot, label)
-                label.show()
-                slot.deleteLater()
-                if not self._thumb_slots:
-                    self._spin_timer.stop()
-                return
-        # fallback: show file-type icon
-        ext = os.path.splitext(
-            self._files[self._current_page * self._page_size + cell]
-        )[1][1:].lower()
-        icon_label = self._create_media_icon(ext)
-        vlayout.replaceWidget(slot, icon_label)
-        icon_label.show()
-        slot.deleteLater()
-        if not self._thumb_slots:
-            self._spin_timer.stop()
+            self._thumb_data[cell] = image_bytes
+        self._pending_cells.pop(cell, None)
+        if self._pending_cells:
+            return
+
+        # All thumbnails decoded — show grid
+        self._spin_timer.stop()
+        self._populate_grid(generation)
+
+    def _populate_grid(self, generation):
+        """Replace placeholder frames with real thumbnails (main thread)."""
+        if generation != self._generation:
+            return
+        thumb_w = self._thumb_width
+        thumb_h = self._thumb_height
+        cols = self._cols
+        count = self.grid_layout.count()
+        for i in range(count):
+            item = self.grid_layout.itemAt(i)
+            if item is None:
+                continue
+            frame = item.widget()
+            if frame is None:
+                continue
+            vlayout = frame.layout()
+            data = self._thumb_data.get(i)
+            if data is not None:
+                pixmap = self._bytes_to_pixmap(data)
+                if pixmap is not None and not pixmap.isNull():
+                    img_label = QLabel()
+                    img_label.setPixmap(pixmap)
+                    img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                    vlayout.insertWidget(0, img_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        self._stack.setCurrentIndex(1)
 
     def _draw_spinner_pixmap(self, angle, size=None):
         """Draw a single rotating-arc loading spinner at the given angle."""
@@ -284,19 +306,10 @@ class PreviewPage(QWidget):
         return pm
 
     def _animate_spinners(self):
-        """Advance the spinner and repaint all pending thumbnail slots."""
-        if not self._thumb_slots:
-            self._spin_timer.stop()
-            return
+        """Advance the loading spinner animation."""
         self._spin_angle = (self._spin_angle + 24) % 360
         pm = self._draw_spinner_pixmap(self._spin_angle)
-        for slot in list(self._thumb_slots.values()):
-            if slot is not None:
-                slot.setPixmap(pm)
-
-    def _ensure_spin_timer(self):
-        if self._thumb_slots and not self._spin_timer.isActive():
-            self._spin_timer.start()
+        self._loading_label.setPixmap(pm)
 
     @staticmethod
     def _load_image_bytes(filepath):
