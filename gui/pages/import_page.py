@@ -83,6 +83,10 @@ class ImportPage(QWidget):
         self.chk_move.setChecked(True)
         options_layout.addRow(self.chk_move)
 
+        self.chk_clean_empty = QCheckBox("导入后删除空目录")
+        self.chk_clean_empty.setChecked(True)
+        options_layout.addRow(self.chk_clean_empty)
+
         self.chk_allow_duplicates = QCheckBox("允许重复导入")
         options_layout.addRow(self.chk_allow_duplicates)
 
@@ -204,6 +208,7 @@ class ImportPage(QWidget):
             trash=self.chk_trash.isChecked(),
             allow_duplicates=self.chk_allow_duplicates.isChecked(),
             move=self.chk_move.isChecked(),
+            clean_empty=self.chk_clean_empty.isChecked(),
             location=location,
             time=time_str,
         )

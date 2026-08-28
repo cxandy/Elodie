@@ -31,7 +31,7 @@ class ImportWorker(QThread):
 
     def __init__(self, files, destination, album_from_folder=False,
                  trash=False, allow_duplicates=False, move=False,
-                 location=None, time=None):
+                 clean_empty=False, location=None, time=None):
         super().__init__()
         self.files = files
         self.destination = destination
@@ -39,6 +39,7 @@ class ImportWorker(QThread):
         self.trash = trash
         self.allow_duplicates = allow_duplicates
         self.move = move
+        self.clean_empty = clean_empty
         self.location = location
         self.time = time
         self._cancelled = False
@@ -129,7 +130,29 @@ class ImportWorker(QThread):
                 self.progress.emit(i + 1, total,
                                    f"[错误] {os.path.basename(filepath)}: {e}")
 
+        if self.clean_empty and not self._cancelled:
+            self._clean_empty_dirs()
+
         self.finished.emit(results)
+
+    def _clean_empty_dirs(self):
+        """Remove empty directories from source file paths, bottom-up."""
+        dirs_seen = set()
+        for filepath in self.files:
+            d = os.path.dirname(_decode(filepath))
+            while d and d not in dirs_seen:
+                dirs_seen.add(d)
+                d = os.path.dirname(d)
+
+        for d in sorted(dirs_seen, key=lambda x: x.count(os.sep), reverse=True):
+            if not os.path.isdir(d):
+                continue
+            try:
+                if not os.listdir(d):
+                    os.rmdir(d)
+                    self.progress.emit(0, 0, f"[清理] 删除空目录: {d}")
+            except OSError:
+                pass
 
 
 class UpdateWorker(QThread):
