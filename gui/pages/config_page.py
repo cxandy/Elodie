@@ -70,7 +70,7 @@ full_path=%location/%year/%month
 
 [File]
 time=%d-%H-%M-%S
-name=%time-%original_name.%extension
+name=%time.%extension
 """,
 }
 
