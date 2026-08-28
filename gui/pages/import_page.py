@@ -80,6 +80,7 @@ class ImportPage(QWidget):
         options_layout.addRow(self.chk_trash)
 
         self.chk_move = QCheckBox("移动文件（不复制，原文件不保留）")
+        self.chk_move.setChecked(True)
         options_layout.addRow(self.chk_move)
 
         self.chk_allow_duplicates = QCheckBox("允许重复导入")
