@@ -209,7 +209,7 @@ class PreviewPage(QWidget):
             name_label.setToolTip(full_name)
             name_label.setStyleSheet("font-size: 11px; color: #333;")
             name_label.setMaximumWidth(thumb_w)
-            vlayout.addWidget(name_label)
+            vlayout.addWidget(name_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
             frame.mousePressEvent = lambda e, p=filepath: self._show_info(p)
 
