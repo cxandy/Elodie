@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFileDialog, QTextEdit, QGroupBox,
     QGridLayout, QScrollArea, QFrame, QStackedWidget,
+    QLineEdit,
 )
 from PySide6.QtCore import (
     Qt, QSize, QRectF, QPointF, QThreadPool, QRunnable,
@@ -107,6 +108,12 @@ class PreviewPage(QWidget):
         layout.addWidget(self._stack)
 
         pager = QHBoxLayout()
+
+        self.btn_first = QPushButton("首页")
+        self.btn_first.clicked.connect(self._first_page)
+        self.btn_first.setEnabled(False)
+        pager.addWidget(self.btn_first)
+
         self.btn_prev = QPushButton("上一页")
         self.btn_prev.clicked.connect(self._prev_page)
         self.btn_prev.setEnabled(False)
@@ -120,6 +127,23 @@ class PreviewPage(QWidget):
         self.btn_next.clicked.connect(self._next_page)
         self.btn_next.setEnabled(False)
         pager.addWidget(self.btn_next)
+
+        self.btn_last = QPushButton("末页")
+        self.btn_last.clicked.connect(self._last_page)
+        self.btn_last.setEnabled(False)
+        pager.addWidget(self.btn_last)
+
+        pager.addSpacing(12)
+        self.page_input = QLineEdit()
+        self.page_input.setPlaceholderText("页码")
+        self.page_input.setFixedWidth(60)
+        self.page_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.page_input.returnPressed.connect(self._jump_to_page)
+        pager.addWidget(self.page_input)
+
+        self.btn_jump = QPushButton("跳转")
+        self.btn_jump.clicked.connect(self._jump_to_page)
+        pager.addWidget(self.btn_jump)
 
         layout.addLayout(pager)
 
@@ -161,6 +185,35 @@ class PreviewPage(QWidget):
             self._current_page += 1
             self._render_grid()
             self.scroll_area.verticalScrollBar().setValue(0)
+
+    def _first_page(self):
+        if self._current_page != 0:
+            self._current_page = 0
+            self._render_grid()
+            self.scroll_area.verticalScrollBar().setValue(0)
+
+    def _last_page(self):
+        last = self._total_pages() - 1
+        if self._current_page != last:
+            self._current_page = last
+            self._render_grid()
+            self.scroll_area.verticalScrollBar().setValue(0)
+
+    def _jump_to_page(self):
+        text = self.page_input.text().strip()
+        if not text:
+            return
+        try:
+            page = int(text)
+        except ValueError:
+            return
+        total = self._total_pages()
+        if page < 1 or page > total:
+            return
+        self._current_page = page - 1
+        self.page_input.clear()
+        self._render_grid()
+        self.scroll_area.verticalScrollBar().setValue(0)
 
     def _render_grid(self):
         # Clear old grid
@@ -241,8 +294,13 @@ class PreviewPage(QWidget):
         self.page_label.setText(
             f"第 {self._current_page + 1}/{total} 页，共 {len(self._files)} 个文件"
         )
-        self.btn_prev.setEnabled(self._current_page > 0)
-        self.btn_next.setEnabled(self._current_page < total - 1)
+        has_prev = self._current_page > 0
+        has_next = self._current_page < total - 1
+        self.btn_first.setEnabled(has_prev)
+        self.btn_prev.setEnabled(has_prev)
+        self.btn_next.setEnabled(has_next)
+        self.btn_last.setEnabled(has_next)
+        self.btn_jump.setEnabled(total > 1)
 
         if not self._files:
             self.info_text.setText("未找到文件。请打开一个文件夹。")
