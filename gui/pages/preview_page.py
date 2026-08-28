@@ -20,6 +20,50 @@ from PySide6.QtGui import (
 MAX_THUMB_CACHE = 200
 
 
+class _ThumbCell(QLabel):
+    """Fixed-size label that shows a spinner while waiting for a thumbnail."""
+
+    def __init__(self, width, height, parent=None):
+        super().__init__(parent)
+        self._w = width
+        self._h = height
+        self.setFixedSize(width, height)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setStyleSheet(
+            "background: #f5f5f5; border: 1px solid #ddd; border-radius: 6px;"
+        )
+        self._angle = 0
+        self._spinning = True
+        self._draw_spinner()
+
+    def _draw_spinner(self):
+        pm = QPixmap(self._w, self._h)
+        pm.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pm)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.translate(self._w / 2, self._h / 2)
+        painter.rotate(self._angle)
+        painter.translate(-self._w / 2, -self._h / 2)
+        pen = QPen(QColor('#2196F3'), 3)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        pad = 20
+        painter.drawArc(QRectF(pad, pad, self._w - 2*pad, self._h - 2*pad), 0*16, 110*16)
+        painter.end()
+        self.setPixmap(pm)
+
+    def advance_spinner(self):
+        if not self._spinning:
+            return
+        self._angle = (self._angle + 24) % 360
+        self._draw_spinner()
+
+    def set_thumbnail(self, pixmap):
+        self._spinning = False
+        if pixmap is not None and not pixmap.isNull():
+            self.setPixmap(pixmap)
+
+
 class _ThumbnailSignals(QObject):
     done = Signal(int, int, object)  # generation, cell_index, image-bytes-or-None
 
@@ -201,32 +245,21 @@ class PreviewPage(QWidget):
 
         global_idx = start
         for filepath in batch:
-            frame = QFrame()
-            frame.setFrameShape(QFrame.Shape.Box)
-            frame.setStyleSheet(
-                "QFrame { border: 1px solid #ddd; border-radius: 6px; }"
-                "QFrame:hover { border-color: #2196F3; }"
-            )
-
-            vlayout = QVBoxLayout(frame)
-            vlayout.setContentsMargins(6, 6, 6, 6)
-            vlayout.setSpacing(4)
-
             ext = os.path.splitext(filepath)[1][1:].lower()
+
+            cell_widget = _ThumbCell(thumb_w, self._thumb_height)
+            cell_widget.setProperty("cell_idx", global_idx)
+            cell_widget.setProperty("filepath", filepath)
 
             # Check cache
             if global_idx in self._thumb_cache:
                 pixmap = self._bytes_to_pixmap(self._thumb_cache[global_idx])
-                if pixmap is not None and not pixmap.isNull():
-                    img_label = QLabel()
-                    img_label.setPixmap(pixmap)
-                    img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    vlayout.addWidget(img_label, alignment=Qt.AlignmentFlag.AlignCenter)
+                cell_widget.set_thumbnail(pixmap)
             elif ext in decode_exts:
                 self._pending_cells[global_idx] = filepath
             else:
                 icon_label = self._create_media_icon(ext)
-                vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
+                cell_widget.set_thumbnail(icon_label.pixmap())
 
             name_label = QLabel()
             name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -239,14 +272,21 @@ class PreviewPage(QWidget):
             name_label.setToolTip(full_name)
             name_label.setStyleSheet("font-size: 11px; color: #333;")
             name_label.setMaximumWidth(thumb_w)
+
+            wrapper = QWidget()
+            wrapper.setProperty("cell_idx", global_idx)
+            wrapper.setProperty("filepath", filepath)
+            vlayout = QVBoxLayout(wrapper)
+            vlayout.setContentsMargins(0, 0, 0, 0)
+            vlayout.setSpacing(4)
+            vlayout.addWidget(cell_widget, alignment=Qt.AlignmentFlag.AlignCenter)
             vlayout.addWidget(name_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-            frame.mousePressEvent = lambda e, p=filepath: self._show_info(p)
-            frame.setProperty("cell_idx", global_idx)
+            wrapper.mousePressEvent = lambda e, p=filepath: self._show_info(p)
 
             row = global_idx // cols
             col = global_idx % cols
-            self.grid_layout.addWidget(frame, row, col)
+            self.grid_layout.addWidget(wrapper, row, col)
             global_idx += 1
 
         self._loaded_count = end
@@ -281,7 +321,7 @@ class PreviewPage(QWidget):
         self._loading_more = False
 
     def _populate_thumbnails(self, generation):
-        """Insert decoded thumbnails into the frames that are waiting."""
+        """Insert decoded thumbnails into the _ThumbCell widgets."""
         if generation != self._generation:
             return
         count = self.grid_layout.count()
@@ -289,49 +329,37 @@ class PreviewPage(QWidget):
             item = self.grid_layout.itemAt(i)
             if item is None:
                 continue
-            frame = item.widget()
-            if frame is None:
+            wrapper = item.widget()
+            if wrapper is None:
                 continue
-            cell = frame.property("cell_idx")
+            cell = wrapper.property("cell_idx")
             if cell is None:
                 continue
             data = self._thumb_cache.get(cell)
             if data is None:
                 continue
-            vlayout = frame.layout()
-            # Skip if already has image
-            if vlayout.count() > 1:
-                first_widget = vlayout.itemAt(0).widget() if vlayout.itemAt(0) else None
-                if first_widget and isinstance(first_widget, QLabel) and first_widget.pixmap():
-                    continue
-            pixmap = self._bytes_to_pixmap(data)
-            if pixmap is not None and not pixmap.isNull():
-                img_label = QLabel()
-                img_label.setPixmap(pixmap)
-                img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                vlayout.insertWidget(0, img_label, alignment=Qt.AlignmentFlag.AlignCenter)
-
-    def _draw_spinner_pixmap(self, angle, size=None):
-        if size is None:
-            size = self._thumb_height
-        pm = QPixmap(size, size)
-        pm.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pm)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.translate(size / 2, size / 2)
-        painter.rotate(angle)
-        painter.translate(-size / 2, -size / 2)
-        pen = QPen(QColor('#2196F3'), 4)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
-        painter.drawArc(QRectF(4, 4, size - 8, size - 8), 0 * 16, 110 * 16)
-        painter.end()
-        return pm
+            vlayout = wrapper.layout()
+            thumb_cell = vlayout.itemAt(0).widget() if vlayout.count() > 0 else None
+            if thumb_cell and isinstance(thumb_cell, _ThumbCell):
+                pixmap = self._bytes_to_pixmap(data)
+                thumb_cell.set_thumbnail(pixmap)
 
     def _animate_spinners(self):
+        """Advance spinner animation on all visible _ThumbCell widgets."""
         self._spin_angle = (self._spin_angle + 24) % 360
-        pm = self._draw_spinner_pixmap(self._spin_angle)
-        self._loading_label.setPixmap(pm)
+        for i in range(self.grid_layout.count()):
+            item = self.grid_layout.itemAt(i)
+            if item is None:
+                continue
+            wrapper = item.widget()
+            if wrapper is None:
+                continue
+            vlayout = wrapper.layout()
+            if vlayout is None:
+                continue
+            thumb_cell = vlayout.itemAt(0).widget() if vlayout.count() > 0 else None
+            if thumb_cell and isinstance(thumb_cell, _ThumbCell):
+                thumb_cell.advance_spinner()
 
     @staticmethod
     def _load_image_bytes(filepath):
