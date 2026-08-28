@@ -109,6 +109,7 @@ class PreviewPage(QWidget):
         self._name_font.setPointSizeF(8.0)
         self._font_metrics = QFontMetrics(self._name_font)
         self._loading_more = False
+        self._spinning_cells = set()  # cell indices with active spinners
         self._setup_ui()
 
     def _setup_ui(self):
@@ -217,6 +218,7 @@ class PreviewPage(QWidget):
                 widget.deleteLater()
         self._generation += 1
         self._pending_cells = {}
+        self._spinning_cells.clear()
 
     def _on_scroll(self, value):
         bar = self.scroll_area.verticalScrollBar()
@@ -231,6 +233,7 @@ class PreviewPage(QWidget):
         self._generation += 1
         generation = self._generation
         self._pending_cells = {}
+        self._spinning_cells.clear()
 
         start = self._loaded_count
         end = min(start + self._batch_size, len(self._files))
@@ -257,6 +260,7 @@ class PreviewPage(QWidget):
                 cell_widget.set_thumbnail(pixmap)
             elif ext in decode_exts:
                 self._pending_cells[global_idx] = filepath
+                self._spinning_cells.add(global_idx)
             else:
                 icon_label = self._create_media_icon(ext)
                 cell_widget.set_thumbnail(icon_label.pixmap())
@@ -314,6 +318,7 @@ class PreviewPage(QWidget):
             while len(self._thumb_cache) > MAX_THUMB_CACHE:
                 self._thumb_cache.popitem(last=False)
         self._pending_cells.pop(cell, None)
+        self._spinning_cells.discard(cell)
         if self._pending_cells:
             return
         self._spin_timer.stop()
@@ -345,14 +350,21 @@ class PreviewPage(QWidget):
                 thumb_cell.set_thumbnail(pixmap)
 
     def _animate_spinners(self):
-        """Advance spinner animation on all visible _ThumbCell widgets."""
+        """Advance spinner animation only on cells still loading."""
+        if not self._spinning_cells:
+            self._spin_timer.stop()
+            return
         self._spin_angle = (self._spin_angle + 24) % 360
+        # Find wrapper widgets by cell_idx
         for i in range(self.grid_layout.count()):
             item = self.grid_layout.itemAt(i)
             if item is None:
                 continue
             wrapper = item.widget()
             if wrapper is None:
+                continue
+            cell = wrapper.property("cell_idx")
+            if cell is None or cell not in self._spinning_cells:
                 continue
             vlayout = wrapper.layout()
             if vlayout is None:
