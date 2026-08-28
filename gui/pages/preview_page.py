@@ -1,4 +1,5 @@
 """Preview page - browse and view media files with EXIF info."""
+import io
 import os
 
 from PySide6.QtWidgets import (
@@ -17,11 +18,16 @@ from PySide6.QtGui import (
 
 
 class _ThumbnailSignals(QObject):
-    done = Signal(int, int, object)  # generation, cell_index, QPixmap-or-None
+    done = Signal(int, int, object)  # generation, cell_index, image-bytes-or-None
 
 
 class _ThumbnailTask(QRunnable):
-    """Decode a single thumbnail off the main thread (image/HEIC)."""
+    """Decode a single image to raw bytes off the main thread.
+
+    A worker thread must never create Qt GUI objects (QPixmap/QImage),
+    so this only performs plain file/CPU decoding and returns raw bytes.
+    The GUI thread converts the bytes into a QPixmap.
+    """
 
     def __init__(self, signals, generation, index, filepath):
         super().__init__()
@@ -31,8 +37,8 @@ class _ThumbnailTask(QRunnable):
         self.filepath = filepath
 
     def run(self):
-        preview = PreviewPage._create_thumbnail(self.filepath)
-        self.signals.done.emit(self.generation, self.index, preview)
+        data = PreviewPage._load_image_bytes(self.filepath)
+        self.signals.done.emit(self.generation, self.index, data)
 
 
 class PreviewPage(QWidget):
@@ -222,27 +228,37 @@ class PreviewPage(QWidget):
             self.info_text.setText("未找到文件。请打开一个文件夹。")
             self._spin_timer.stop()
 
-    def _on_thumbnail_ready(self, generation, cell, pixmap):
-        """Replace a spinner with the decoded thumbnail once it's ready."""
+    def _on_thumbnail_ready(self, generation, cell, image_bytes):
+        """Replace a spinner with the decoded thumbnail once it's ready.
+
+        ``image_bytes`` is raw image data (JPEG/PNG/BMP/GIF bytes) from the
+        worker thread.  We must convert to QPixmap on the main thread.
+        """
         if generation != self._generation:
             return
         slot = self._thumb_slots.pop(cell, None)
         if slot is None:
             return
         vlayout = slot.parentWidget().layout()
-        if pixmap is not None and not pixmap.isNull():
-            label = QLabel()
-            label.setPixmap(pixmap)
-            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            vlayout.replaceWidget(slot, label)
-            label.show()
-        else:
-            ext = os.path.splitext(
-                self._files[self._current_page * self._page_size + cell]
-            )[1][1:].lower()
-            icon_label = self._create_media_icon(ext)
-            vlayout.replaceWidget(slot, icon_label)
-            icon_label.show()
+        if image_bytes is not None:
+            pixmap = self._bytes_to_pixmap(image_bytes)
+            if pixmap is not None and not pixmap.isNull():
+                label = QLabel()
+                label.setPixmap(pixmap)
+                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                vlayout.replaceWidget(slot, label)
+                label.show()
+                slot.deleteLater()
+                if not self._thumb_slots:
+                    self._spin_timer.stop()
+                return
+        # fallback: show file-type icon
+        ext = os.path.splitext(
+            self._files[self._current_page * self._page_size + cell]
+        )[1][1:].lower()
+        icon_label = self._create_media_icon(ext)
+        vlayout.replaceWidget(slot, icon_label)
+        icon_label.show()
         slot.deleteLater()
         if not self._thumb_slots:
             self._spin_timer.stop()
@@ -279,33 +295,33 @@ class PreviewPage(QWidget):
             self._spin_timer.start()
 
     @staticmethod
-    def _create_thumbnail(filepath):
-        """Decode an image/HEIC to a scaled QPixmap (runs on a worker thread).
+    def _load_image_bytes(filepath):
+        """Read/convert an image file to raw bytes on the worker thread.
 
-        Returns an already-resized (max 120x120) QPixmap, or None if the file
-        cannot be turned into a thumbnail.
+        HEIC is decoded to PNG bytes via pillow-heif (CPU-only, safe in a
+        worker). Other formats are read as-is; the GUI thread decodes them
+        with Qt. Returns bytes, or None on failure.
         """
         ext = os.path.splitext(filepath)[1][1:].lower()
         if ext in ('dng', 'nef', 'arw', 'cr2', 'rw2'):
             return None
         try:
             if ext == 'heic':
-                pixmap = PreviewPage._heic_to_pixmap(filepath)
-            else:
-                pixmap = QPixmap(filepath)
-            if pixmap is None or pixmap.isNull():
+                return PreviewPage._heic_to_png_bytes(filepath)
+            with open(filepath, 'rb') as f:
+                data = f.read()
+            if not data:
                 return None
-            return pixmap.scaled(QSize(120, 120), Qt.AspectRatioMode.KeepAspectRatio,
-                                 Qt.TransformationMode.SmoothTransformation)
+            return data
         except Exception:
             return None
 
     @staticmethod
-    def _heic_to_pixmap(filepath):
-        """Decode an HEIC image to a QPixmap using pillow-heif.
+    def _heic_to_png_bytes(filepath):
+        """Decode an HEIC image to PNG bytes using pillow-heif.
 
         pillow-heif bundles its own HEVC decoder, so no system codec is
-        required. Returns None if HEIC support is unavailable.
+        required. Returns PNG bytes, or None if HEIC support is missing.
         """
         try:
             from PIL import Image
@@ -317,11 +333,23 @@ class PreviewPage(QWidget):
                     img = img.convert('RGB')
                 buffer = io.BytesIO()
                 img.save(buffer, format='PNG')
-                buffer.seek(0)
-                image = QImage.fromData(buffer.getvalue(), 'PNG')
-                if image.isNull():
-                    return None
-                return QPixmap.fromImage(image)
+                return buffer.getvalue()
+        except Exception:
+            return None
+
+    @staticmethod
+    def _bytes_to_pixmap(data):
+        """Convert raw image bytes to a scaled QPixmap (main thread only)."""
+        try:
+            if not data:
+                return None
+            image = QImage.fromData(data)
+            if image.isNull():
+                return None
+            return QPixmap.fromImage(image).scaled(
+                QSize(120, 120), Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
         except Exception:
             return None
 
