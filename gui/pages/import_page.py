@@ -208,6 +208,7 @@ class ImportPage(QWidget):
         )
         self.worker.progress.connect(self._on_progress)
         self.worker.finished.connect(self._on_finished)
+        self.worker.confirm.connect(self._on_confirm)
         self.worker.start()
 
     def _on_progress(self, current, total, filename):
@@ -218,6 +219,18 @@ class ImportPage(QWidget):
         if self.worker:
             self.worker.cancel()
             self.progress_label.setText("正在取消...")
+
+    def _on_confirm(self, message, filepath):
+        from PySide6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(
+            self,
+            "确认操作",
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if self.worker:
+            self.worker.set_confirm_result(reply == QMessageBox.StandardButton.Yes)
 
     def _on_finished(self, results):
         self.btn_import.setEnabled(True)

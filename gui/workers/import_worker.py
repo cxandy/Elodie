@@ -1,5 +1,6 @@
 """Worker thread for import operations."""
 import os
+import threading
 
 from PySide6.QtCore import QThread, Signal
 
@@ -26,6 +27,7 @@ class ImportWorker(QThread):
     progress = Signal(int, int, str)  # current, total, filename
     finished = Signal(list)  # list of (source, dest, success)
     error = Signal(str)
+    confirm = Signal(str, str)  # message, filepath
 
     def __init__(self, files, destination, album_from_folder=False,
                  trash=False, allow_duplicates=False, move=False,
@@ -40,9 +42,24 @@ class ImportWorker(QThread):
         self.location = location
         self.time = time
         self._cancelled = False
+        self._confirm_event = threading.Event()
+        self._confirm_result = False
 
     def cancel(self):
         self._cancelled = True
+
+    def request_confirm(self, message, filepath):
+        """Emit confirm signal and block until GUI responds."""
+        self._confirm_result = False
+        self._confirm_event.clear()
+        self.confirm.emit(message, filepath)
+        self._confirm_event.wait()
+        return self._confirm_result
+
+    def set_confirm_result(self, result):
+        """Called by GUI thread to deliver the user's choice."""
+        self._confirm_result = result
+        self._confirm_event.set()
 
     def run(self):
         from elodie import geolocation
@@ -93,6 +110,24 @@ class ImportWorker(QThread):
                         time_string = '%s 00:00:00' % time_string
                     dt = datetime.strptime(time_string, time_format)
                     media.set_date_taken(dt)
+
+                if self.move:
+                    metadata = media.get_metadata()
+                    folder_path = FILESYSTEM.get_folder_path(metadata)
+                    file_name = FILESYSTEM.get_file_name(metadata)
+                    final_dest = os.path.join(
+                        self.destination, folder_path, file_name
+                    )
+                    if os.path.exists(final_dest):
+                        msg = (
+                            f"目标文件已存在:\n{final_dest}\n\n"
+                            f"源文件: {filepath}\n\n"
+                            f"是否覆盖？"
+                        )
+                        confirmed = self.request_confirm(msg, filepath)
+                        if not confirmed:
+                            results.append((filepath, final_dest, False))
+                            continue
 
                 dest_path = FILESYSTEM.process_file(
                     filepath, self.destination, media,
