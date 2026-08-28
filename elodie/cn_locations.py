@@ -31,6 +31,38 @@ _PROVINCE_COUNTRY = {
     'Russia': '俄罗斯', 'New Zealand': '新西兰',
 }
 
+# Supplementary city/place translations for names missing from ExifTool's
+# GeoLang database (which is incomplete for county-level cities). Add more
+# entries here (or in a config file) as needed; keys are the English name
+# exactly as ExifTool returns in GeolocationCity.
+_CITY_EXTRA = {
+    'Cixi': '慈溪',
+    'Yuyao': '余姚',
+    'Ningbo': '宁波',
+    'Ningbo Shi': '宁波市',
+    'Hangzhou': '杭州',
+    'Shangyu': '上虞',
+    'Shengzhou': '嵊州',
+    'Zhuji': '诸暨',
+    'Fenghua': '奉化',
+    'Xiangshan': '象山',
+    'Ninghai': '宁海',
+    'Yinzhou': '鄞州',
+    'Haishu': '海曙',
+    'Jiangbei': '江北',
+    'Zhenhai': '镇海',
+    'Beilun': '北仑',
+    'Wenzhou': '温州',
+    'Shaoxing': '绍兴',
+    'Jinhua': '金华',
+    'Taizhou': '台州',
+    'Jiaxing': '嘉兴',
+    'Huzhou': '湖州',
+    'Quzhou': '衢州',
+    'Zhoushan': '舟山',
+    'Lishui': '丽水',
+}
+
 
 def _find_geolang_file():
     """Find ExifTool's zh_cn.pm GeoLang file."""
@@ -111,7 +143,12 @@ def translate_location(english_name, region=None, country_code=None):
         if result:
             return result
 
-    # 3. Fallback to built-in province/country mapping
+    # 3. Supplementary city translations for names missing from GeoLang.
+    result = _CITY_EXTRA.get(english_name)
+    if result:
+        return result
+
+    # 4. Fallback to built-in province/country mapping
     return _PROVINCE_COUNTRY.get(english_name, english_name)
 
 
@@ -133,11 +170,12 @@ def translate_location_dict(location_dict):
     for key, value in location_dict.items():
         if isinstance(value, str):
             if key == 'city':
-                # Use subregion for compound key lookup if available
-                region_for_lookup = subregion if subregion else state
+                # Compound key in GeoLang uses the province/state level
+                # (e.g. "CNZhejiang,Ningbo Shi,Cixi") so pass state first.
+                region_for_lookup = state if state else subregion
                 result[key] = translate_location(value, region_for_lookup, country_code)
             elif key == 'default':
-                region_for_lookup = subregion if subregion else state
+                region_for_lookup = state if state else subregion
                 result[key] = translate_location(value, region_for_lookup, country_code)
             else:
                 result[key] = translate_location(value)
