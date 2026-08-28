@@ -113,7 +113,7 @@ class ImportWorker(QThread):
 
                 dest_path = FILESYSTEM.process_file(
                     filepath, self.destination, media,
-                    allowDuplicate=self.allow_duplicates,
+                    allowDuplicate=self.allow_duplicates or self.move,
                     move=self.move
                 )
 
