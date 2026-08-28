@@ -4,7 +4,7 @@ import os
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QFileDialog, QTextEdit, QGroupBox,
+    QPushButton, QFileDialog, QTextEdit,
     QGridLayout, QScrollArea, QFrame, QStackedWidget,
     QLineEdit,
 )
@@ -146,16 +146,6 @@ class PreviewPage(QWidget):
         pager.addWidget(self.btn_jump)
 
         layout.addLayout(pager)
-
-        info_group = QGroupBox("EXIF 信息")
-        info_layout = QVBoxLayout()
-        self.info_text = QTextEdit()
-        self.info_text.setReadOnly(True)
-        self.info_text.setMaximumHeight(150)
-        self.info_text.setPlaceholderText("选择一个文件查看 EXIF 信息")
-        info_layout.addWidget(self.info_text)
-        info_group.setLayout(info_layout)
-        layout.addWidget(info_group)
 
     def _open_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "选择文件夹")
@@ -301,9 +291,6 @@ class PreviewPage(QWidget):
         self.btn_next.setEnabled(has_next)
         self.btn_last.setEnabled(has_next)
         self.btn_jump.setEnabled(total > 1)
-
-        if not self._files:
-            self.info_text.setText("未找到文件。请打开一个文件夹。")
 
     def _on_thumbnail_ready(self, generation, cell, image_bytes):
         """Receive decoded thumbnail bytes and populate grid when all done."""
@@ -495,6 +482,7 @@ class PreviewPage(QWidget):
         return label
 
     def _show_info(self, filepath):
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton
         try:
             from elodie.media.base import Base, get_all_subclasses
             from elodie.media.media import Media
@@ -505,21 +493,40 @@ class PreviewPage(QWidget):
 
             media = Media.get_class_by_file(filepath, get_all_subclasses())
             if not media:
-                self.info_text.setText(f"无法读取文件信息: {filepath}")
-                return
-
-            metadata = media.get_metadata()
-            lines = [
-                f"文件: {os.path.basename(filepath)}",
-                f"路径: {filepath}",
-                f"类型: {media.__name__}",
-                f"拍摄时间: {metadata.get('date_taken', '未知')}",
-                f"相机: {metadata.get('camera_make', '')} {metadata.get('camera_model', '')}",
-                f"相册: {metadata.get('album', '未知')}",
-                f"标题: {metadata.get('title', '未知')}",
-                f"纬度: {metadata.get('latitude', '未知')}",
-                f"经度: {metadata.get('longitude', '未知')}",
-            ]
-            self.info_text.setText("\n".join(lines))
+                text = f"无法读取文件信息: {filepath}"
+            else:
+                metadata = media.get_metadata()
+                lines = [
+                    f"文件: {os.path.basename(filepath)}",
+                    f"路径: {filepath}",
+                    f"类型: {media.__name__}",
+                    f"拍摄时间: {metadata.get('date_taken', '未知')}",
+                    f"相机: {metadata.get('camera_make', '')} {metadata.get('camera_model', '')}",
+                    f"相册: {metadata.get('album', '未知')}",
+                    f"标题: {metadata.get('title', '未知')}",
+                    f"纬度: {metadata.get('latitude', '未知')}",
+                    f"经度: {metadata.get('longitude', '未知')}",
+                ]
+                text = "\n".join(lines)
         except Exception as e:
-            self.info_text.setText(f"读取 EXIF 信息时出错: {e}")
+            text = f"读取 EXIF 信息时出错: {e}"
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("EXIF 信息")
+        dlg.setMinimumWidth(420)
+        dlg.setMinimumHeight(260)
+        dlg_layout = QVBoxLayout(dlg)
+
+        text_edit = QTextEdit()
+        text_edit.setReadOnly(True)
+        text_edit.setText(text)
+        dlg_layout.addWidget(text_edit)
+
+        btn_close = QPushButton("关闭")
+        btn_close.clicked.connect(dlg.close)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(btn_close)
+        dlg_layout.addLayout(btn_row)
+
+        dlg.exec()
