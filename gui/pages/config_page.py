@@ -65,10 +65,11 @@ name=%time-%original_name-%title.%extension
     "按地点分类": """[Directory]
 location=%city, %state
 year=%Y
-full_path=%location/%year
+month=%m
+full_path=%location/%year/%month
 
 [File]
-time=%H-%M-%S
+time=%d-%H-%M-%S
 name=%time-%original_name.%extension
 """,
 }
