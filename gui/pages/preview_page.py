@@ -127,8 +127,7 @@ class PreviewPage(QWidget):
             ext = os.path.splitext(filepath)[1][1:].lower()
             if ext in ('jpg', 'jpeg', 'png', 'bmp', 'gif', 'heic', 'dng', 'nef', 'arw', 'cr2'):
                 thumb = self._create_thumbnail(filepath)
-                if thumb:
-                    vlayout.addWidget(thumb, alignment=Qt.AlignmentFlag.AlignCenter)
+                if thumb:                    vlayout.addWidget(thumb, alignment=Qt.AlignmentFlag.AlignCenter)
                 else:
                     icon_label = self._create_media_icon(ext)
                     vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -160,11 +159,14 @@ class PreviewPage(QWidget):
 
     def _create_thumbnail(self, filepath):
         ext = os.path.splitext(filepath)[1][1:].lower()
-        if ext in ('heic', 'dng', 'nef', 'arw', 'cr2', 'rw2'):
+        if ext in ('dng', 'nef', 'arw', 'cr2', 'rw2'):
             return None
         try:
-            pixmap = QPixmap(filepath)
-            if pixmap.isNull():
+            if ext == 'heic':
+                pixmap = self._heic_to_pixmap(filepath)
+            else:
+                pixmap = QPixmap(filepath)
+            if pixmap is None or pixmap.isNull():
                 return None
             label = QLabel()
             label.setPixmap(
@@ -173,6 +175,32 @@ class PreviewPage(QWidget):
             )
             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             return label
+        except Exception:
+            return None
+
+    @staticmethod
+    def _heic_to_pixmap(filepath):
+        """Decode an HEIC image to a QPixmap using pillow-heif.
+
+        pillow-heif bundles its own HEVC decoder, so no system codec is
+        required. Returns None if HEIC support is unavailable.
+        """
+        try:
+            import io
+            from PIL import Image
+            import pillow_heif
+            pillow_heif.register_heif_opener()
+            with Image.open(filepath) as img:
+                img.load()
+                if img.mode not in ('RGB', 'RGBA'):
+                    img = img.convert('RGB')
+                buffer = io.BytesIO()
+                img.save(buffer, format='PNG')
+                buffer.seek(0)
+                image = QImage.fromData(buffer.getvalue(), 'PNG')
+                if image.isNull():
+                    return None
+                return QPixmap.fromImage(image)
         except Exception:
             return None
 
