@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFileDialog, QTextEdit,
     QGridLayout, QScrollArea, QFrame, QStackedWidget,
-    QLineEdit,
 )
 from PySide6.QtCore import (
     Qt, QSize, QRectF, QPointF, QThreadPool, QRunnable,
@@ -23,12 +22,7 @@ class _ThumbnailSignals(QObject):
 
 
 class _ThumbnailTask(QRunnable):
-    """Decode a single image to raw bytes off the main thread.
-
-    A worker thread must never create Qt GUI objects (QPixmap/QImage),
-    so this only performs plain file/CPU decoding and returns raw bytes.
-    The GUI thread converts the bytes into a QPixmap.
-    """
+    """Decode a single image to raw bytes off the main thread."""
 
     def __init__(self, signals, generation, index, filepath):
         super().__init__()
@@ -48,8 +42,8 @@ class PreviewPage(QWidget):
     def __init__(self):
         super().__init__()
         self._files = []
-        self._current_page = 0
-        self._page_size = 40
+        self._loaded_count = 0
+        self._batch_size = 40
         self._generation = 0
         self._pending_cells = {}
         self._thumb_data = {}
@@ -67,6 +61,7 @@ class PreviewPage(QWidget):
         self._name_font = QFont()
         self._name_font.setPointSizeF(8.0)
         self._font_metrics = QFontMetrics(self._name_font)
+        self._loading_more = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -91,6 +86,7 @@ class PreviewPage(QWidget):
         # Page 1: scroll area with grid
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.verticalScrollBar().valueChanged.connect(self._on_scroll)
         self.grid_widget = QWidget()
         self.grid_layout = QGridLayout(self.grid_widget)
         self.grid_layout.setSpacing(8)
@@ -100,55 +96,23 @@ class PreviewPage(QWidget):
         self._stack.setCurrentIndex(1)
         layout.addWidget(self._stack)
 
-        pager = QHBoxLayout()
+        toolbar = QHBoxLayout()
 
         btn_open = QPushButton("打开文件夹")
         btn_open.clicked.connect(self._open_folder)
-        pager.addWidget(btn_open)
+        toolbar.addWidget(btn_open)
 
         btn_clean = QPushButton("清理空目录")
         btn_clean.clicked.connect(self._clean_empty_dirs)
-        pager.addWidget(btn_clean)
+        toolbar.addWidget(btn_clean)
 
-        pager.addStretch()
+        toolbar.addStretch()
 
-        self.btn_first = QPushButton("首页")
-        self.btn_first.clicked.connect(self._first_page)
-        self.btn_first.setEnabled(False)
-        pager.addWidget(self.btn_first)
+        self._info_label = QLabel()
+        self._info_label.setStyleSheet("color: #888; font-size: 11px;")
+        toolbar.addWidget(self._info_label)
 
-        self.btn_prev = QPushButton("上一页")
-        self.btn_prev.clicked.connect(self._prev_page)
-        self.btn_prev.setEnabled(False)
-        pager.addWidget(self.btn_prev)
-
-        self.page_label = QLabel()
-        self.page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pager.addWidget(self.page_label)
-
-        self.btn_next = QPushButton("下一页")
-        self.btn_next.clicked.connect(self._next_page)
-        self.btn_next.setEnabled(False)
-        pager.addWidget(self.btn_next)
-
-        self.btn_last = QPushButton("末页")
-        self.btn_last.clicked.connect(self._last_page)
-        self.btn_last.setEnabled(False)
-        pager.addWidget(self.btn_last)
-
-        pager.addSpacing(12)
-        self.page_input = QLineEdit()
-        self.page_input.setPlaceholderText("页码")
-        self.page_input.setFixedWidth(60)
-        self.page_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.page_input.returnPressed.connect(self._jump_to_page)
-        pager.addWidget(self.page_input)
-
-        self.btn_jump = QPushButton("跳转")
-        self.btn_jump.clicked.connect(self._jump_to_page)
-        pager.addWidget(self.btn_jump)
-
-        layout.addLayout(pager)
+        layout.addLayout(toolbar)
 
     def _open_folder(self):
         folder = QFileDialog.getExistingDirectory(self, "选择文件夹")
@@ -192,81 +156,49 @@ class PreviewPage(QWidget):
         from elodie.filesystem import FileSystem
         fs = FileSystem()
         self._files = list(fs.get_all_files(folder))
-        self._current_page = 0
-        self._render_grid()
+        self._loaded_count = 0
+        self._clear_grid()
+        self._load_next_batch()
+        self._update_info()
 
-    def _total_pages(self):
-        if not self._files:
-            return 1
-        return (len(self._files) + self._page_size - 1) // self._page_size
-
-    def _prev_page(self):
-        if self._current_page > 0:
-            self._current_page -= 1
-            self._render_grid()
-            self.scroll_area.verticalScrollBar().setValue(0)
-
-    def _next_page(self):
-        if self._current_page < self._total_pages() - 1:
-            self._current_page += 1
-            self._render_grid()
-            self.scroll_area.verticalScrollBar().setValue(0)
-
-    def _first_page(self):
-        if self._current_page != 0:
-            self._current_page = 0
-            self._render_grid()
-            self.scroll_area.verticalScrollBar().setValue(0)
-
-    def _last_page(self):
-        last = self._total_pages() - 1
-        if self._current_page != last:
-            self._current_page = last
-            self._render_grid()
-            self.scroll_area.verticalScrollBar().setValue(0)
-
-    def _jump_to_page(self):
-        text = self.page_input.text().strip()
-        if not text:
-            return
-        try:
-            page = int(text)
-        except ValueError:
-            return
-        total = self._total_pages()
-        if page < 1 or page > total:
-            return
-        self._current_page = page - 1
-        self.page_input.clear()
-        self._render_grid()
-        self.scroll_area.verticalScrollBar().setValue(0)
-
-    def _render_grid(self):
-        # Clear old grid
+    def _clear_grid(self):
         while self.grid_layout.count():
             item = self.grid_layout.takeAt(0)
             widget = item.widget()
             if widget:
                 widget.deleteLater()
+        self._generation += 1
+        self._pending_cells = {}
+        self._thumb_data = {}
 
+    def _on_scroll(self, value):
+        bar = self.scroll_area.verticalScrollBar()
+        if bar.maximum() - value < 300 and not self._loading_more:
+            self._load_next_batch()
+
+    def _load_next_batch(self):
+        if self._loaded_count >= len(self._files):
+            return
+
+        self._loading_more = True
         self._generation += 1
         generation = self._generation
         self._pending_cells = {}
         self._thumb_data = {}
 
-        start = self._current_page * self._page_size
-        end = start + self._page_size
-        page_files = self._files[start:end]
+        start = self._loaded_count
+        end = min(start + self._batch_size, len(self._files))
+        batch = self._files[start:end]
 
         decode_exts = ('jpg', 'jpeg', 'png', 'bmp', 'gif', 'heic')
-
         thumb_w = self._thumb_width
-        thumb_h = self._thumb_height
         cols = self._cols
+
         for col_idx in range(cols):
             self.grid_layout.setColumnMinimumWidth(col_idx, thumb_w + 12)
 
-        for cell, filepath in enumerate(page_files):
+        global_idx = start
+        for filepath in batch:
             frame = QFrame()
             frame.setFrameShape(QFrame.Shape.Box)
             frame.setStyleSheet(
@@ -280,8 +212,8 @@ class PreviewPage(QWidget):
 
             ext = os.path.splitext(filepath)[1][1:].lower()
             if ext in decode_exts:
-                self._pending_cells[cell] = filepath
-                self._thumb_data[cell] = None
+                self._pending_cells[global_idx] = filepath
+                self._thumb_data[global_idx] = None
             else:
                 icon_label = self._create_media_icon(ext)
                 vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -301,35 +233,28 @@ class PreviewPage(QWidget):
 
             frame.mousePressEvent = lambda e, p=filepath: self._show_info(p)
 
-            row = cell // cols
-            col = cell % cols
+            row = global_idx // cols
+            col = global_idx % cols
             self.grid_layout.addWidget(frame, row, col)
+            global_idx += 1
+
+        self._loaded_count = end
+        self._update_info()
 
         if self._pending_cells:
-            self._stack.setCurrentIndex(0)
-            self._spin_angle = 0
             self._spin_timer.start()
             for cell, filepath in self._pending_cells.items():
                 self._thread_pool.start(
                     _ThumbnailTask(self._thumb_signals, generation, cell, filepath)
                 )
         else:
-            self._stack.setCurrentIndex(1)
+            self._loading_more = False
 
-        total = self._total_pages()
-        self.page_label.setText(
-            f"第 {self._current_page + 1}/{total} 页，共 {len(self._files)} 个文件"
-        )
-        has_prev = self._current_page > 0
-        has_next = self._current_page < total - 1
-        self.btn_first.setEnabled(has_prev)
-        self.btn_prev.setEnabled(has_prev)
-        self.btn_next.setEnabled(has_next)
-        self.btn_last.setEnabled(has_next)
-        self.btn_jump.setEnabled(total > 1)
+    def _update_info(self):
+        total = len(self._files)
+        self._info_label.setText(f"已加载 {self._loaded_count}/{total} 个文件")
 
     def _on_thumbnail_ready(self, generation, cell, image_bytes):
-        """Receive decoded thumbnail bytes and populate grid when all done."""
         if generation != self._generation:
             return
         if image_bytes is not None:
@@ -337,18 +262,14 @@ class PreviewPage(QWidget):
         self._pending_cells.pop(cell, None)
         if self._pending_cells:
             return
-
-        # All thumbnails decoded — show grid
         self._spin_timer.stop()
         self._populate_grid(generation)
+        self._loading_more = False
 
     def _populate_grid(self, generation):
-        """Replace placeholder frames with real thumbnails (main thread)."""
         if generation != self._generation:
             return
         thumb_w = self._thumb_width
-        thumb_h = self._thumb_height
-        cols = self._cols
         count = self.grid_layout.count()
         for i in range(count):
             item = self.grid_layout.itemAt(i)
@@ -366,10 +287,8 @@ class PreviewPage(QWidget):
                     img_label.setPixmap(pixmap)
                     img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     vlayout.insertWidget(0, img_label, alignment=Qt.AlignmentFlag.AlignCenter)
-        self._stack.setCurrentIndex(1)
 
     def _draw_spinner_pixmap(self, angle, size=None):
-        """Draw a single rotating-arc loading spinner at the given angle."""
         if size is None:
             size = self._thumb_height
         pm = QPixmap(size, size)
@@ -387,19 +306,12 @@ class PreviewPage(QWidget):
         return pm
 
     def _animate_spinners(self):
-        """Advance the loading spinner animation."""
         self._spin_angle = (self._spin_angle + 24) % 360
         pm = self._draw_spinner_pixmap(self._spin_angle)
         self._loading_label.setPixmap(pm)
 
     @staticmethod
     def _load_image_bytes(filepath):
-        """Read/convert an image file to raw bytes on the worker thread.
-
-        HEIC is decoded to PNG bytes via pillow-heif (CPU-only, safe in a
-        worker). Other formats are read as-is; the GUI thread decodes them
-        with Qt. Returns bytes, or None on failure.
-        """
         ext = os.path.splitext(filepath)[1][1:].lower()
         if ext in ('dng', 'nef', 'arw', 'cr2', 'rw2'):
             return None
@@ -416,11 +328,6 @@ class PreviewPage(QWidget):
 
     @staticmethod
     def _heic_to_png_bytes(filepath):
-        """Decode an HEIC image to PNG bytes using pillow-heif.
-
-        pillow-heif bundles its own HEVC decoder, so no system codec is
-        required. Returns PNG bytes, or None if HEIC support is missing.
-        """
         try:
             from PIL import Image
             import pillow_heif
@@ -436,7 +343,6 @@ class PreviewPage(QWidget):
             return None
 
     def _bytes_to_pixmap(self, data):
-        """Convert raw image bytes to a scaled QPixmap (main thread only)."""
         try:
             if not data:
                 return None
@@ -452,7 +358,6 @@ class PreviewPage(QWidget):
             return None
 
     def _create_media_icon(self, ext):
-        """Draw a clean media-type icon (video/audio/text) using QPainter."""
         video_exts = ('avi', 'm4v', 'mov', 'mp4', 'mpg', 'mpeg', '3gp', 'mts', 'mkv', 'webm', 'wmv')
         audio_exts = ('m4a', 'mp3', 'wav', 'aac', 'flac', 'ogg')
         text_exts = ('txt', 'md', 'log', 'csv', 'json', 'xml')
