@@ -116,15 +116,17 @@ HELP_TEXT = """\
 
 关键配置项:
   full_path  完整文件夹路径模板
-  date       日期文件夹格式
+  year       年份文件夹格式
+  month      月份文件夹格式
   location   位置文件夹格式
 
 示例:
   [Directory]
-  date=%Y-%m-%b
+  year=%Y
+  month=%m
   location=%city, %state
-  full_path=%date/%location
-  # 结果: 2024-01-Jan/北京, 中国
+  full_path=%year/%month/%location
+  # 结果: 2024/01/北京, 中国
 
 ━━━ [File] 文件命名配置 ━━━
 
@@ -305,9 +307,10 @@ class ConfigPage(QWidget):
                 self.config_editor.setText(f.read())
         else:
             default_config = """[Directory]
-date=%Y-%m-%b
+year=%Y
+month=%m
 location=%city
-full_path=%date/%album|%location|"Unknown Location"
+full_path=%year/%month/%album|%location|"Unknown Location"
 
 [File]
 time=%H-%M-%S

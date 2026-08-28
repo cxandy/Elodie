@@ -32,9 +32,10 @@ class FileSystem(object):
         }
         # The default folder path is along the lines of 2015-01-Jan/Chicago
         self.default_folder_path_definition = {
-            'date': '%Y-%m-%b',
+            'year': '%Y',
+            'month': '%m',
             'location': '%city',
-            'full_path': '%date/%album|%location|"{}"'.format(
+            'full_path': '%year/%month/%album|%location|"{}"'.format(
                             geolocation.__DEFAULT_LOCATION__
                          ),
         }
