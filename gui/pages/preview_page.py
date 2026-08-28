@@ -201,10 +201,8 @@ class PreviewPage(QWidget):
             name_label = QLabel()
             name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             full_name = os.path.basename(filepath)
-            if full_name and self._font_metrics.horizontalAdvance(full_name) > thumb_w:
-                elided = self._font_metrics.elidedText(
-                    full_name, Qt.TextElideMode.ElideMiddle, thumb_w
-                )
+            if len(full_name) > 20:
+                elided = full_name[:9] + '...' + full_name[-9:]
                 name_label.setText(elided)
             else:
                 name_label.setText(full_name)
