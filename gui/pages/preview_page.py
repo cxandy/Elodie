@@ -6,8 +6,33 @@ from PySide6.QtWidgets import (
     QPushButton, QFileDialog, QTextEdit, QGroupBox,
     QGridLayout, QScrollArea, QFrame,
 )
-from PySide6.QtCore import Qt, QSize, QRectF, QPointF
-from PySide6.QtGui import QPixmap, QImage, QPainter, QColor, QPolygonF, QBrush, QPen, QFont, QPainterPath
+from PySide6.QtCore import (
+    Qt, QSize, QRectF, QPointF, QThreadPool, QRunnable,
+    QObject, Signal, QTimer,
+)
+from PySide6.QtGui import (
+    QPixmap, QImage, QPainter, QColor, QPolygonF, QBrush, QPen, QFont,
+    QFontMetrics,
+)
+
+
+class _ThumbnailSignals(QObject):
+    done = Signal(int, int, object)  # generation, cell_index, QPixmap-or-None
+
+
+class _ThumbnailTask(QRunnable):
+    """Decode a single thumbnail off the main thread (image/HEIC)."""
+
+    def __init__(self, signals, generation, index, filepath):
+        super().__init__()
+        self.signals = signals
+        self.generation = generation
+        self.index = index
+        self.filepath = filepath
+
+    def run(self):
+        preview = PreviewPage._create_thumbnail(self.filepath)
+        self.signals.done.emit(self.generation, self.index, preview)
 
 
 class PreviewPage(QWidget):
@@ -18,6 +43,20 @@ class PreviewPage(QWidget):
         self._files = []
         self._current_page = 0
         self._page_size = 40
+        self._generation = 0
+        self._thumb_slots = {}
+        self._thread_pool = QThreadPool(self)
+        self._thread_pool.setMaxThreadCount(4)
+        self._thumb_signals = _ThumbnailSignals(self)
+        self._thumb_signals.done.connect(self._on_thumbnail_ready)
+        self._spin_angle = 0
+        self._spin_timer = QTimer(self)
+        self._spin_timer.setInterval(60)
+        self._spin_timer.timeout.connect(self._animate_spinners)
+        self._name_font = QFont()
+        self._name_font.setPointSizeF(8.0)
+        self._font_metrics = QFontMetrics(self._name_font)
+        self._name_max_width = 112
         self._setup_ui()
 
     def _setup_ui(self):
@@ -107,12 +146,19 @@ class PreviewPage(QWidget):
             if widget:
                 widget.deleteLater()
 
+        self._generation += 1
+        generation = self._generation
+        self._thumb_slots = {}
+
         start = self._current_page * self._page_size
         end = start + self._page_size
         page_files = self._files[start:end]
 
+        decode_exts = ('jpg', 'jpeg', 'png', 'bmp', 'gif', 'heic')
+        raw_exts = ('dng', 'nef', 'arw', 'cr2', 'rw2')
+
         cols = 4
-        for i, filepath in enumerate(page_files):
+        for cell, filepath in enumerate(page_files):
             frame = QFrame()
             frame.setFrameShape(QFrame.Shape.Box)
             frame.setStyleSheet(
@@ -125,27 +171,45 @@ class PreviewPage(QWidget):
             vlayout.setSpacing(4)
 
             ext = os.path.splitext(filepath)[1][1:].lower()
-            if ext in ('jpg', 'jpeg', 'png', 'bmp', 'gif', 'heic', 'dng', 'nef', 'arw', 'cr2'):
-                thumb = self._create_thumbnail(filepath)
-                if thumb:                    vlayout.addWidget(thumb, alignment=Qt.AlignmentFlag.AlignCenter)
-                else:
-                    icon_label = self._create_media_icon(ext)
-                    vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
+            if ext in decode_exts:
+                spinner = QLabel()
+                spinner.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                spinner.setFixedSize(120, 120)
+                spinner.setPixmap(self._draw_spinner_pixmap(self._spin_angle))
+                vlayout.addWidget(spinner, alignment=Qt.AlignmentFlag.AlignCenter)
+                self._thumb_slots[cell] = spinner
+                self._thread_pool.start(
+                    _ThumbnailTask(self._thumb_signals, generation, cell, filepath)
+                )
+            elif ext in raw_exts:
+                icon_label = self._create_media_icon(ext)
+                vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
             else:
                 icon_label = self._create_media_icon(ext)
                 vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
-            name_label = QLabel(os.path.basename(filepath))
-            name_label.setWordWrap(True)
+            name_label = QLabel()
             name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            name_label.setStyleSheet("font-size: 11px;")
+            full_name = os.path.basename(filepath)
+            max_w = self._name_max_width
+            if full_name and self._font_metrics.horizontalAdvance(full_name) > max_w:
+                elided = self._font_metrics.elidedText(
+                    full_name, Qt.TextElideMode.ElideMiddle, max_w
+                )
+                name_label.setText(elided)
+            else:
+                name_label.setText(full_name)
+            name_label.setToolTip(full_name)
+            name_label.setStyleSheet("font-size: 11px; color: #333;")
             vlayout.addWidget(name_label)
 
             frame.mousePressEvent = lambda e, p=filepath: self._show_info(p)
 
-            row = i // cols
-            col = i % cols
+            row = cell // cols
+            col = cell % cols
             self.grid_layout.addWidget(frame, row, col)
+
+        self._ensure_spin_timer()
 
         total = self._total_pages()
         self.page_label.setText(
@@ -156,25 +220,83 @@ class PreviewPage(QWidget):
 
         if not self._files:
             self.info_text.setText("未找到文件。请打开一个文件夹。")
+            self._spin_timer.stop()
 
-    def _create_thumbnail(self, filepath):
+    def _on_thumbnail_ready(self, generation, cell, pixmap):
+        """Replace a spinner with the decoded thumbnail once it's ready."""
+        if generation != self._generation:
+            return
+        slot = self._thumb_slots.pop(cell, None)
+        if slot is None:
+            return
+        vlayout = slot.parentWidget().layout()
+        if pixmap is not None and not pixmap.isNull():
+            label = QLabel()
+            label.setPixmap(pixmap)
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            vlayout.replaceWidget(slot, label)
+            label.show()
+        else:
+            ext = os.path.splitext(
+                self._files[self._current_page * self._page_size + cell]
+            )[1][1:].lower()
+            icon_label = self._create_media_icon(ext)
+            vlayout.replaceWidget(slot, icon_label)
+            icon_label.show()
+        slot.deleteLater()
+        if not self._thumb_slots:
+            self._spin_timer.stop()
+
+    def _draw_spinner_pixmap(self, angle, size=48):
+        """Draw a single rotating-arc loading spinner at the given angle."""
+        pm = QPixmap(size, size)
+        pm.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pm)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.translate(size / 2, size / 2)
+        painter.rotate(angle)
+        painter.translate(-size / 2, -size / 2)
+        pen = QPen(QColor('#2196F3'), 4)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.drawArc(QRectF(4, 4, size - 8, size - 8), 0 * 16, 110 * 16)
+        painter.end()
+        return pm
+
+    def _animate_spinners(self):
+        """Advance the spinner and repaint all pending thumbnail slots."""
+        if not self._thumb_slots:
+            self._spin_timer.stop()
+            return
+        self._spin_angle = (self._spin_angle + 24) % 360
+        pm = self._draw_spinner_pixmap(self._spin_angle)
+        for slot in list(self._thumb_slots.values()):
+            if slot is not None:
+                slot.setPixmap(pm)
+
+    def _ensure_spin_timer(self):
+        if self._thumb_slots and not self._spin_timer.isActive():
+            self._spin_timer.start()
+
+    @staticmethod
+    def _create_thumbnail(filepath):
+        """Decode an image/HEIC to a scaled QPixmap (runs on a worker thread).
+
+        Returns an already-resized (max 120x120) QPixmap, or None if the file
+        cannot be turned into a thumbnail.
+        """
         ext = os.path.splitext(filepath)[1][1:].lower()
         if ext in ('dng', 'nef', 'arw', 'cr2', 'rw2'):
             return None
         try:
             if ext == 'heic':
-                pixmap = self._heic_to_pixmap(filepath)
+                pixmap = PreviewPage._heic_to_pixmap(filepath)
             else:
                 pixmap = QPixmap(filepath)
             if pixmap is None or pixmap.isNull():
                 return None
-            label = QLabel()
-            label.setPixmap(
-                pixmap.scaled(QSize(120, 120), Qt.AspectRatioMode.KeepAspectRatio,
-                              Qt.TransformationMode.SmoothTransformation)
-            )
-            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            return label
+            return pixmap.scaled(QSize(120, 120), Qt.AspectRatioMode.KeepAspectRatio,
+                                 Qt.TransformationMode.SmoothTransformation)
         except Exception:
             return None
 
@@ -186,7 +308,6 @@ class PreviewPage(QWidget):
         required. Returns None if HEIC support is unavailable.
         """
         try:
-            import io
             from PIL import Image
             import pillow_heif
             pillow_heif.register_heif_opener()
