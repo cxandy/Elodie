@@ -1,6 +1,7 @@
 """Preview page - browse and view media files with EXIF info."""
 import io
 import os
+from collections import OrderedDict
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -15,6 +16,8 @@ from PySide6.QtGui import (
     QPixmap, QImage, QPainter, QColor, QPolygonF, QBrush, QPen, QFont,
     QFontMetrics,
 )
+
+MAX_THUMB_CACHE = 200
 
 
 class _ThumbnailSignals(QObject):
@@ -37,19 +40,16 @@ class _ThumbnailTask(QRunnable):
 
 
 class PreviewPage(QWidget):
-    """Page for previewing media files with virtual scrolling.
-
-    Only cells near the visible scroll region are kept in the grid.
-    Scrolling far away destroys off-screen cells to save memory.
-    Scrolling back recreates them on demand.
-    """
+    """Page for previewing media files and their EXIF data."""
 
     def __init__(self):
         super().__init__()
         self._files = []
+        self._loaded_count = 0
+        self._batch_size = 40
         self._generation = 0
-        self._thumb_cache = {}  # cell_index → raw image bytes
         self._pending_cells = {}
+        self._thumb_cache = OrderedDict()  # cell_index → raw image bytes
         self._thread_pool = QThreadPool(self)
         self._thread_pool.setMaxThreadCount(4)
         self._thumb_signals = _ThumbnailSignals(self)
@@ -64,8 +64,7 @@ class PreviewPage(QWidget):
         self._name_font = QFont()
         self._name_font.setPointSizeF(8.0)
         self._font_metrics = QFontMetrics(self._name_font)
-        self._visible_range = (-1, -1)  # (start, end) of currently rendered cells
-        self._buffer = 20  # extra rows above/below visible area
+        self._loading_more = False
         self._setup_ui()
 
     def _setup_ui(self):
@@ -160,59 +159,38 @@ class PreviewPage(QWidget):
         from elodie.filesystem import FileSystem
         fs = FileSystem()
         self._files = list(fs.get_all_files(folder))
+        self._loaded_count = 0
         self._thumb_cache.clear()
-        self._pending_cells.clear()
-        self._visible_range = (-1, -1)
-        self._generation += 1
-        self._update_visible_range(force=True)
+        self._clear_grid()
+        self._load_next_batch()
         self._update_info()
 
-    def _on_scroll(self, value):
-        self._update_visible_range()
-
-    def _update_visible_range(self, force=False):
-        """Determine which cells should be rendered based on scroll position."""
-        if not self._files:
-            return
-
-        bar = self.scroll_area.verticalScrollBar()
-        viewport_h = self.scroll_area.viewport().height()
-        row_h = self._thumb_height + 40  # thumbnail + label + margins
-        cols = self._cols
-
-        first_visible_row = max(0, bar.value() // row_h - self._buffer)
-        last_visible_row = min(
-            (len(self._files) + cols - 1) // cols,
-            (bar.value() + viewport_h) // row_h + self._buffer
-        )
-
-        first_idx = first_visible_row * cols
-        last_idx = min(last_visible_row * cols, len(self._files))
-
-        if not force and (first_idx, last_idx) == self._visible_range:
-            return
-
-        self._visible_range = (first_idx, last_idx)
-        self._rebuild_grid()
-
-    def _rebuild_grid(self):
-        """Recreate only the cells in the visible range + buffer."""
-        self._generation += 1
-        generation = self._generation
-
-        # Cancel pending thumbnail tasks
-        self._pending_cells.clear()
-
-        # Clear grid
+    def _clear_grid(self):
         while self.grid_layout.count():
             item = self.grid_layout.takeAt(0)
             widget = item.widget()
             if widget:
                 widget.deleteLater()
+        self._generation += 1
+        self._pending_cells = {}
 
-        start, end = self._visible_range
-        if start < 0 or end <= 0:
+    def _on_scroll(self, value):
+        bar = self.scroll_area.verticalScrollBar()
+        if bar.maximum() - value < 300 and not self._loading_more:
+            self._load_next_batch()
+
+    def _load_next_batch(self):
+        if self._loaded_count >= len(self._files):
             return
+
+        self._loading_more = True
+        self._generation += 1
+        generation = self._generation
+        self._pending_cells = {}
+
+        start = self._loaded_count
+        end = min(start + self._batch_size, len(self._files))
+        batch = self._files[start:end]
 
         decode_exts = ('jpg', 'jpeg', 'png', 'bmp', 'gif', 'heic')
         thumb_w = self._thumb_width
@@ -221,8 +199,8 @@ class PreviewPage(QWidget):
         for col_idx in range(cols):
             self.grid_layout.setColumnMinimumWidth(col_idx, thumb_w + 12)
 
-        for cell in range(start, end):
-            filepath = self._files[cell]
+        global_idx = start
+        for filepath in batch:
             frame = QFrame()
             frame.setFrameShape(QFrame.Shape.Box)
             frame.setStyleSheet(
@@ -236,16 +214,16 @@ class PreviewPage(QWidget):
 
             ext = os.path.splitext(filepath)[1][1:].lower()
 
-            # Check cache first
-            if cell in self._thumb_cache:
-                pixmap = self._bytes_to_pixmap(self._thumb_cache[cell])
+            # Check cache
+            if global_idx in self._thumb_cache:
+                pixmap = self._bytes_to_pixmap(self._thumb_cache[global_idx])
                 if pixmap is not None and not pixmap.isNull():
                     img_label = QLabel()
                     img_label.setPixmap(pixmap)
                     img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     vlayout.addWidget(img_label, alignment=Qt.AlignmentFlag.AlignCenter)
             elif ext in decode_exts:
-                self._pending_cells[cell] = filepath
+                self._pending_cells[global_idx] = filepath
             else:
                 icon_label = self._create_media_icon(ext)
                 vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -264,10 +242,15 @@ class PreviewPage(QWidget):
             vlayout.addWidget(name_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
             frame.mousePressEvent = lambda e, p=filepath: self._show_info(p)
+            frame.setProperty("cell_idx", global_idx)
 
-            row = cell // cols
-            col = cell % cols
+            row = global_idx // cols
+            col = global_idx % cols
             self.grid_layout.addWidget(frame, row, col)
+            global_idx += 1
+
+        self._loaded_count = end
+        self._update_info()
 
         if self._pending_cells:
             self._spin_timer.start()
@@ -276,31 +259,31 @@ class PreviewPage(QWidget):
                     _ThumbnailTask(self._thumb_signals, generation, cell, filepath)
                 )
         else:
-            self._spin_timer.stop()
-
-        self._update_info()
+            self._loading_more = False
 
     def _update_info(self):
         total = len(self._files)
-        self._info_label.setText(f"共 {total} 个文件")
+        self._info_label.setText(f"已加载 {self._loaded_count}/{total} 个文件")
 
     def _on_thumbnail_ready(self, generation, cell, image_bytes):
         if generation != self._generation:
             return
         if image_bytes is not None:
             self._thumb_cache[cell] = image_bytes
+            # Evict oldest if cache too large
+            while len(self._thumb_cache) > MAX_THUMB_CACHE:
+                self._thumb_cache.popitem(last=False)
         self._pending_cells.pop(cell, None)
         if self._pending_cells:
             return
         self._spin_timer.stop()
         self._populate_thumbnails(generation)
+        self._loading_more = False
 
     def _populate_thumbnails(self, generation):
-        """Insert decoded thumbnails into the currently rendered frames."""
+        """Insert decoded thumbnails into the frames that are waiting."""
         if generation != self._generation:
             return
-        start, end = self._visible_range
-        cols = self._cols
         count = self.grid_layout.count()
         for i in range(count):
             item = self.grid_layout.itemAt(i)
@@ -309,21 +292,24 @@ class PreviewPage(QWidget):
             frame = item.widget()
             if frame is None:
                 continue
-            vlayout = frame.layout()
-            # Map grid index back to file index
-            grid_row = i // cols
-            grid_col = i % cols
-            file_idx = start + grid_row * cols + grid_col
-            if file_idx >= end:
+            cell = frame.property("cell_idx")
+            if cell is None:
                 continue
-            data = self._thumb_cache.get(file_idx)
-            if data is not None:
-                pixmap = self._bytes_to_pixmap(data)
-                if pixmap is not None and not pixmap.isNull():
-                    img_label = QLabel()
-                    img_label.setPixmap(pixmap)
-                    img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    vlayout.insertWidget(0, img_label, alignment=Qt.AlignmentFlag.AlignCenter)
+            data = self._thumb_cache.get(cell)
+            if data is None:
+                continue
+            vlayout = frame.layout()
+            # Skip if already has image
+            if vlayout.count() > 1:
+                first_widget = vlayout.itemAt(0).widget() if vlayout.itemAt(0) else None
+                if first_widget and isinstance(first_widget, QLabel) and first_widget.pixmap():
+                    continue
+            pixmap = self._bytes_to_pixmap(data)
+            if pixmap is not None and not pixmap.isNull():
+                img_label = QLabel()
+                img_label.setPixmap(pixmap)
+                img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                vlayout.insertWidget(0, img_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
     def _draw_spinner_pixmap(self, angle, size=None):
         if size is None:
