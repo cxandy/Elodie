@@ -567,8 +567,6 @@ class FileSystem(object):
         file_name = self.get_file_name(metadata)
         dest_path = os.path.join(dest_directory, file_name)        
 
-        media.set_original_name()
-
         # If source and destination are identical then
         #  we should not write the file. gh-210
         if(_file == dest_path):
