@@ -111,24 +111,6 @@ class ImportWorker(QThread):
                     dt = datetime.strptime(time_string, time_format)
                     media.set_date_taken(dt)
 
-                if self.move:
-                    metadata = media.get_metadata()
-                    folder_path = FILESYSTEM.get_folder_path(metadata)
-                    file_name = FILESYSTEM.get_file_name(metadata)
-                    final_dest = os.path.join(
-                        self.destination, folder_path, file_name
-                    )
-                    if os.path.exists(final_dest):
-                        msg = (
-                            f"目标文件已存在:\n{final_dest}\n\n"
-                            f"源文件: {filepath}\n\n"
-                            f"是否覆盖？"
-                        )
-                        confirmed = self.request_confirm(msg, filepath)
-                        if not confirmed:
-                            results.append((filepath, final_dest, False))
-                            continue
-
                 dest_path = FILESYSTEM.process_file(
                     filepath, self.destination, media,
                     allowDuplicate=self.allow_duplicates,
