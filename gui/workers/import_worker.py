@@ -28,7 +28,7 @@ class ImportWorker(QThread):
     error = Signal(str)
 
     def __init__(self, files, destination, album_from_folder=False,
-                 trash=False, allow_duplicates=False,
+                 trash=False, allow_duplicates=False, move=False,
                  location=None, time=None):
         super().__init__()
         self.files = files
@@ -36,6 +36,7 @@ class ImportWorker(QThread):
         self.album_from_folder = album_from_folder
         self.trash = trash
         self.allow_duplicates = allow_duplicates
+        self.move = move
         self.location = location
         self.time = time
         self._cancelled = False
@@ -95,12 +96,13 @@ class ImportWorker(QThread):
 
                 dest_path = FILESYSTEM.process_file(
                     filepath, self.destination, media,
-                    allowDuplicate=self.allow_duplicates, move=False
+                    allowDuplicate=self.allow_duplicates,
+                    move=self.move
                 )
 
                 if dest_path:
                     results.append((filepath, dest_path, True))
-                    if self.trash:
+                    if self.trash and not self.move:
                         _send2trash(filepath)
                 else:
                     results.append((filepath, None, False))

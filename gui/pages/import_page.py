@@ -79,6 +79,9 @@ class ImportPage(QWidget):
         self.chk_trash = QCheckBox("导入后移除原文件到回收站")
         options_layout.addRow(self.chk_trash)
 
+        self.chk_move = QCheckBox("移动文件（不复制，原文件不保留）")
+        options_layout.addRow(self.chk_move)
+
         self.chk_allow_duplicates = QCheckBox("允许重复导入")
         options_layout.addRow(self.chk_allow_duplicates)
 
@@ -199,6 +202,7 @@ class ImportPage(QWidget):
             album_from_folder=self.chk_album_from_folder.isChecked(),
             trash=self.chk_trash.isChecked(),
             allow_duplicates=self.chk_allow_duplicates.isChecked(),
+            move=self.chk_move.isChecked(),
             location=location,
             time=time_str,
         )
@@ -225,11 +229,13 @@ class ImportPage(QWidget):
         success = [r for r in results if r[2]]
         failed = [r for r in results if not r[2]]
 
-        lines = [f"导入完成: {len(success)} 成功, {len(failed)} 失败"]
+        lines = [f"导入完成: {len(success)} 成功, {len(failed)} 失败/跳过"]
         for source, dest, ok in results[:20]:
             name = os.path.basename(source)
             if ok:
                 lines.append(f"  [OK] {name} -> {dest}")
+            elif dest is None and not ok:
+                lines.append(f"  [跳过] {name} (目标已存在或无法处理)")
             else:
                 lines.append(f"  [失败] {name}")
         if len(results) > 20:
