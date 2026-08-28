@@ -163,7 +163,7 @@ class FileSystem(object):
         # Name template is in the form %time-%original_name-%title.%extension
         # Definition is in the form
         #  [
-        #    [('date', '%Y-%m-%d_%H-%M-%S')],
+        #    [('time', '%H-%M-%S')],
         #    [('original_name', '')], [('title', '')], // contains a fallback
         #    [('extension', '')]
         #  ]
@@ -174,7 +174,7 @@ class FileSystem(object):
             this_value = None
             for this_part in parts:
                 part, mask = this_part
-                if part in ('date', 'day', 'month', 'year'):
+                if part in ('date', 'day', 'month', 'year', 'time'):
                     this_value = time.strftime(mask, metadata['date_taken'])
                     break
                 elif part in ('location', 'city', 'state', 'country'):
