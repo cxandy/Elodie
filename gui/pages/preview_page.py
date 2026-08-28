@@ -6,8 +6,8 @@ from PySide6.QtWidgets import (
     QPushButton, QFileDialog, QTextEdit, QGroupBox,
     QGridLayout, QScrollArea, QFrame,
 )
-from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QPixmap, QImage
+from PySide6.QtCore import Qt, QSize, QRectF, QPointF
+from PySide6.QtGui import QPixmap, QImage, QPainter, QColor, QPolygonF, QBrush, QPen, QFont, QPainterPath
 
 
 class PreviewPage(QWidget):
@@ -129,11 +129,12 @@ class PreviewPage(QWidget):
                 thumb = self._create_thumbnail(filepath)
                 if thumb:
                     vlayout.addWidget(thumb, alignment=Qt.AlignmentFlag.AlignCenter)
+                else:
+                    icon_label = self._create_media_icon(ext)
+                    vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
             else:
-                icon_label = QLabel(f"[{ext.upper()}]")
-                icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                icon_label.setStyleSheet("font-size: 24px; color: #666; padding: 20px;")
-                vlayout.addWidget(icon_label)
+                icon_label = self._create_media_icon(ext)
+                vlayout.addWidget(icon_label, alignment=Qt.AlignmentFlag.AlignCenter)
 
             name_label = QLabel(os.path.basename(filepath))
             name_label.setWordWrap(True)
@@ -174,6 +175,70 @@ class PreviewPage(QWidget):
             return label
         except Exception:
             return None
+
+    def _create_media_icon(self, ext):
+        """Draw a clean media-type icon (video/audio/text) using QPainter."""
+        video_exts = ('avi', 'm4v', 'mov', 'mp4', 'mpg', 'mpeg', '3gp', 'mts', 'mkv', 'webm', 'wmv')
+        audio_exts = ('m4a', 'mp3', 'wav', 'aac', 'flac', 'ogg')
+        text_exts = ('txt', 'md', 'log', 'csv', 'json', 'xml')
+
+        if ext in video_exts:
+            bg_color, fg_color = QColor('#1976D2'), QColor('#FFFFFF')
+            label_text = "VIDEO"
+        elif ext in audio_exts:
+            bg_color, fg_color = QColor('#388E3C'), QColor('#FFFFFF')
+            label_text = "AUDIO"
+        elif ext in text_exts:
+            bg_color, fg_color = QColor('#757575'), QColor('#FFFFFF')
+            label_text = "TEXT"
+        elif ext in ('heic', 'dng', 'nef', 'arw', 'cr2', 'rw2'):
+            bg_color, fg_color = QColor('#F57C00'), QColor('#FFFFFF')
+            label_text = ext.upper()
+        else:
+            bg_color, fg_color = QColor('#607D8B'), QColor('#FFFFFF')
+            label_text = ext.upper()
+
+        size = 120
+        pixmap = QPixmap(size, size)
+        pixmap.fill(Qt.GlobalColor.transparent)
+
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        painter.setPen(QPen(bg_color, 2))
+        painter.setBrush(QBrush(bg_color))
+        painter.drawRoundedRect(QRectF(8, 8, size - 16, size - 16), 12, 12)
+
+        if ext in video_exts:
+            painter.setPen(QPen(fg_color, 0))
+            painter.setBrush(QBrush(fg_color))
+            cx, cy = float(size) / 2, float(size) / 2
+            tri = QPolygonF([
+                QPointF(cx - 12, cy - 18),
+                QPointF(cx + 16, cy),
+                QPointF(cx - 12, cy + 18),
+            ])
+            painter.drawPolygon(tri)
+        else:
+            font = QFont()
+            font.setPointSize(20)
+            font.setBold(True)
+            painter.setFont(font)
+            painter.setPen(QPen(fg_color))
+            short = ext.upper() if len(ext) <= 4 else ext[:3].upper()
+            painter.drawText(QRectF(8, 8, size - 16, size - 16),
+                             Qt.AlignmentFlag.AlignCenter, short)
+
+        painter.end()
+
+        label = QLabel()
+        label.setPixmap(
+            pixmap.scaled(QSize(120, 120), Qt.AspectRatioMode.KeepAspectRatio,
+                          Qt.TransformationMode.SmoothTransformation)
+        )
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setToolTip(f"{label_text} 文件")
+        return label
 
     def _show_info(self, filepath):
         try:
