@@ -599,11 +599,17 @@ class FileSystem(object):
             print('%s is not a valid media file. Skipping...' % _file)
             return
 
-        checksum = self.process_checksum(_file, allow_duplicate)
-        if(checksum is None):
-            log.info('Original checksum returned None for %s. Skipping...' %
-                     _file)
-            return
+        # A move never needs whole-file hashing: duplicate detection is only
+        # meaningful for the copy path (and import_worker already forces
+        # allow_duplicate=True on move). Computing a SHA-256 of every large
+        # file (ARW etc.) just to move it is pure I/O cost, so skip it.
+        checksum = None
+        if not move:
+            checksum = self.process_checksum(_file, allow_duplicate)
+            if(checksum is None):
+                log.info('Original checksum returned None for %s. Skipping...' %
+                         _file)
+                return
 
         # Run `before()` for every loaded plugin and if any of them raise an exception
         #  then we skip importing the file and log a message.
@@ -678,7 +684,8 @@ class FileSystem(object):
                 print(f"[DRY-RUN] Would set utime from metadata for: {dest_path}")
 
         db = Db()
-        db.add_hash(checksum, dest_path)
+        if checksum is not None:
+            db.add_hash(checksum, dest_path)
         db.update_hash_db()
 
         # Run `after()` for every loaded plugin and if any of them raise an exception
