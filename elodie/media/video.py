@@ -11,6 +11,7 @@ from __future__ import division
 # load modules
 from datetime import datetime
 
+import calendar
 import os
 import re
 import time
@@ -37,6 +38,7 @@ class Video(Media):
             'QuickTime:CreateDate',
             'QuickTime:CreationDate-und-US',
             'QuickTime:MediaCreateDate',
+            'RIFF:DateTimeOriginal',
             'H264:DateTimeOriginal'
         ]
         self.title_key = 'XMP:DisplayName'
@@ -76,9 +78,8 @@ class Video(Media):
                 date = re.search('([0-9: ]+)([-+][0-9:]+)?', exif[date_key])
                 if(date is not None):
                     date_string = date.group(1)
-                    date_offset = date.group(2)
                     try:
-                        exif_seconds_since_epoch = time.mktime(
+                        exif_seconds_since_epoch = calendar.timegm(
                             datetime.strptime(
                                 date_string,
                                 '%Y:%m:%d %H:%M:%S'
@@ -86,14 +87,6 @@ class Video(Media):
                         )
                         if(exif_seconds_since_epoch < seconds_since_epoch):
                             seconds_since_epoch = exif_seconds_since_epoch
-                            if date_offset is not None:
-                                offset_parts = date_offset[1:].split(':')
-                                offset_seconds = int(offset_parts[0]) * 3600
-                                offset_seconds = offset_seconds + int(offset_parts[1]) * 60
-                                if date_offset[0] == '-':
-                                    seconds_since_epoch = seconds_since_epoch - offset_seconds
-                                elif date_offset[0] == '+':
-                                    seconds_since_epoch = seconds_since_epoch + offset_seconds
                     except Exception:
                         pass
 
