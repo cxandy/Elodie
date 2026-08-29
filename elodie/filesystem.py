@@ -71,6 +71,23 @@ class FileSystem(object):
             send2trash(src)
         return True
 
+    def _unique_destination(self, dst):
+        """Return a destination path that does not already exist.
+
+        When a file already exists at ``dst`` we append a numeric suffix
+        before the extension (``name (1).jpg``, ``name (2).jpg``, ...) so the
+        existing file is never overwritten.
+        """
+        if not os.path.exists(dst):
+            return dst
+        base, ext = os.path.splitext(dst)
+        i = 1
+        while True:
+            candidate = "%s (%d)%s" % (base, i, ext)
+            if not os.path.exists(candidate):
+                return candidate
+            i += 1
+
     def create_directory(self, directory_path):
         """Create a directory if it does not already exist.
 
@@ -603,7 +620,11 @@ class FileSystem(object):
             file_name = os.path.basename(_file)
         else:
             file_name = self.get_file_name(metadata)
-        dest_path = os.path.join(dest_directory, file_name)        
+        dest_path = os.path.join(dest_directory, file_name)
+
+        # If a file already exists at the destination, do not overwrite it
+        # silently; pick a non-conflicting name instead (e.g. "x (1).jpg").
+        dest_path = self._unique_destination(dest_path)
 
         # If source and destination are identical then
         #  we should not write the file. gh-210
