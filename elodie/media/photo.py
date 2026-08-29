@@ -31,6 +31,10 @@ class Photo(Media):
     #: Valid extensions for photo files.
     extensions = ('arw', 'bmp', 'cr2', 'dng', 'gif', 'heic', 'jpeg', 'jpg', 'nef', 'png', 'rw2')
 
+    #: Raw formats that Pillow's built-in decoders cannot open but ExifTool can
+    #: read. Used to decide when to fall back to ExifTool in is_valid().
+    raw_unsupported_extensions = ('arw', 'cr2', 'nef', 'rw2')
+
     def __init__(self, source=None):
         super(Photo, self).__init__(source)
 
@@ -98,16 +102,26 @@ class Photo(Media):
         # https://github.com/python-pillow/Pillow/issues/2806
         extension = os.path.splitext(source)[1][1:].lower()
         if(extension != 'heic'):
-            # gh-4 This checks if the source file is an image.
-            # Use Pillow to validate the image format.
-            if(self.pillow is None):
+            # gh-4 This checks if the source file is an image, but only as a
+            # best effort. Several raw formats (e.g. .arw, .cr2, .nef, .rw2)
+            # are not supported by Pillow's built-in decoders even though
+            # ExifTool reads them fine. If Pillow cannot identify the file we
+            # fall back to ExifTool, but only for those raw formats; a broken
+            # JPEG/PNG should still be treated as invalid.
+            identified = False
+            if(self.pillow is not None):
+                try:
+                    im = self.pillow.open(source)
+                    if(im.format is not None):
+                        identified = True
+                except IOError:
+                    identified = False
+            if(not identified and extension in self.raw_unsupported_extensions):
+                try:
+                    identified = self.get_exiftool_attributes() is not False
+                except Exception:
+                    identified = False
+            if(not identified):
                 return False
 
-            try:
-                im = self.pillow.open(source)
-                if(im.format is None):
-                    return False
-            except IOError:
-                return False
-        
         return extension in self.extensions
