@@ -84,6 +84,7 @@ class ImportPage(QWidget):
         options_layout.addRow(self.chk_move)
 
         self.chk_keep_filename = QCheckBox("保留原文件名（不按模板重命名）")
+        self.chk_keep_filename.setChecked(True)
         options_layout.addRow(self.chk_keep_filename)
 
         self.chk_clean_empty = QCheckBox("导入后删除空目录")
