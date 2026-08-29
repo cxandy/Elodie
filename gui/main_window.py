@@ -13,6 +13,7 @@ from gui.pages.update_page import UpdatePage
 from gui.pages.preview_page import PreviewPage
 from gui.pages.config_page import ConfigPage
 from gui.pages.setup_page import SetupPage
+from gui.pages.duplicate_page import DuplicatePage
 
 
 class MainWindow(QMainWindow):
@@ -62,6 +63,9 @@ class MainWindow(QMainWindow):
         self.config_page = ConfigPage()
         self.stack.addWidget(self.config_page)  # index 4
 
+        self.duplicate_page = DuplicatePage()
+        self.stack.addWidget(self.duplicate_page)  # index 5
+
         main_layout.addWidget(self.stack, 1)
 
         self.stack.setCurrentIndex(0)
@@ -99,6 +103,7 @@ class MainWindow(QMainWindow):
         self._add_nav_item("  更新元数据", 2)
         self._add_nav_item("  文件预览", 3)
         self._add_nav_item("  配置", 4)
+        self._add_nav_item("  重复扫描", 5)
 
         layout.addStretch()
 
