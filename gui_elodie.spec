@@ -48,6 +48,9 @@ a = Analysis(
         # ExifTool configuration must land at <_MEIPASS>/configs/ExifTool_config
         # so that elodie.constants.exiftool_config resolves in frozen mode.
         ('configs/ExifTool_config', 'configs'),
+        # The Chinese place-name database bundled with Elodie. cn_locations.py
+        # resolves it at <_MEIPASS>/elodie/geolocations/zh_cn.pm.
+        ('elodie/geolocations', 'elodie/geolocations'),
     ],
     hiddenimports=[
         # elodie media subclasses are resolved dynamically via get_all_subclasses()

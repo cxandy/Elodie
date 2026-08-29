@@ -1,0 +1,3 @@
+# Keep the ExifTool geolocation translation file byte-identical (no CRLF
+# conversion) so the name-to-Chinese parsing in cn_locations.py is unaffected.
+elodie/geolocations/*.pm -text

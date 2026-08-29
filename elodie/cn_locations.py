@@ -65,10 +65,26 @@ _CITY_EXTRA = {
 
 
 def _find_geolang_file():
-    """Find ExifTool's zh_cn.pm GeoLang file."""
+    """Find a zh_cn.pm GeoLang translation file.
+
+    A copy of the official ExifTool Chinese place-name database ships with
+    Elodie (elodie/geolocations/zh_cn.pm), so we look there first - this
+    works offline, without requiring the user to install ExifTool's optional
+    Geolocation extension, and also resolves correctly inside a PyInstaller
+    frozen build (sys._MEIPASS). We then fall back to an ExifTool installation
+    that has the alternate Geolocation database installed.
+    """
     candidates = []
 
-    # ExifTool installed location (Windows)
+    # 1. The copy bundled with Elodie: <elodie_package_dir>/geolocations/zh_cn.pm
+    #    In a frozen (PyInstaller) build __file__ lives under _MEIPASS/elodie/,
+    #    so this path is also correct there.
+    bundled_file = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        'geolocations', 'zh_cn.pm')
+    candidates.append(bundled_file)
+
+    # 2. ExifTool installed location (Windows)
     local_app = os.path.expandvars(r'%LOCALAPPDATA%\Programs\ExifTool')
     candidates.append(os.path.join(local_app, 'exiftool_files', 'lib',
                                    'Image', 'ExifTool', 'GeoLang', 'zh_cn.pm'))
