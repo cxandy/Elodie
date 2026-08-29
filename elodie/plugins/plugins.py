@@ -11,17 +11,14 @@ import io
 from json import dumps, loads
 from importlib import import_module
 
-from elodie import constants
-from os.path import dirname, dirname, isdir, isfile
+from elodie import constants, log
+from os.path import dirname, isdir, isfile
 from os import mkdir
-from sys import exc_info
 from traceback import format_exc
 
 from elodie.compatability import _bytes
 from elodie.config import load_config_for_plugin, load_plugin_config
 from elodie.constants import application_directory
-from elodie import constants
-from elodie import log
 
 
 class ElodiePluginError(Exception):

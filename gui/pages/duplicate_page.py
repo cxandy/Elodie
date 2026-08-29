@@ -1,12 +1,22 @@
 """Duplicate page - scan a directory and manage duplicate files."""
 import os
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QFileDialog, QProgressBar, QTreeWidget,
-    QTreeWidgetItem, QGroupBox, QAbstractItemView, QMessageBox,
-)
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from gui.workers.duplicate_worker import DuplicateWorker
 

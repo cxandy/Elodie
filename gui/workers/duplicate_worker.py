@@ -73,12 +73,7 @@ class DuplicateWorker(QThread):
                 scanned += 1
                 self.progress.emit(scanned, len(candidates))
 
-        groups = [
-            [digest, paths]
-            for digest, paths in hash_to_paths.items()
-            if len(paths) >= 2
-        ]
-        self.finished.emit(groups)
+        self.finished.emit(self._groups_from(hash_to_paths))
 
     @classmethod
     def scan(cls, directory):
@@ -113,11 +108,7 @@ class DuplicateWorker(QThread):
                 if digest:
                     hash_to_paths.setdefault(digest, []).append(path)
 
-        return [
-            [digest, paths]
-            for digest, paths in hash_to_paths.items()
-            if len(paths) >= 2
-        ]
+        return cls._groups_from(hash_to_paths)
 
     @staticmethod
     def _sha256(path, blocksize=65536):
@@ -129,3 +120,11 @@ class DuplicateWorker(QThread):
                     break
                 hasher.update(buf)
         return hasher.hexdigest()
+
+    @staticmethod
+    def _groups_from(hash_to_paths):
+        return [
+            [digest, paths]
+            for digest, paths in hash_to_paths.items()
+            if len(paths) >= 2
+        ]

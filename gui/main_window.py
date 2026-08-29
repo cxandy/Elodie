@@ -1,19 +1,24 @@
 """Main window with sidebar navigation and stacked pages."""
 import shutil
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-    QPushButton, QStackedWidget, QLabel, QFrame,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QFont, QIcon
 
-from gui.pages.import_page import ImportPage
-from gui.pages.update_page import UpdatePage
-from gui.pages.preview_page import PreviewPage
 from gui.pages.config_page import ConfigPage
-from gui.pages.setup_page import SetupPage
 from gui.pages.duplicate_page import DuplicatePage
+from gui.pages.import_page import ImportPage
+from gui.pages.preview_page import PreviewPage
+from gui.pages.setup_page import SetupPage
+from gui.pages.update_page import UpdatePage
 
 
 class MainWindow(QMainWindow):

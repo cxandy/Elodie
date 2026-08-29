@@ -3,16 +3,24 @@ import json
 import os
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QTextEdit, QGroupBox, QFormLayout,
-    QLineEdit, QMessageBox, QScrollArea, QDialog,
-    QDialogButtonBox, QListWidget, QListWidgetItem,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt
 
 from elodie import constants
-from elodie.config import load_config, get_config_file
-
+from elodie.config import get_config_file, load_config
 
 PRESETS_FILE = os.path.join(constants.application_directory(), 'presets.json')
 
@@ -361,7 +369,7 @@ name=%time-%original_name-%title.%extension
         QMessageBox.information(
             self, "重建数据库",
             "请在终端中运行以下命令:\n\n"
-            f"python elodie.py generate-db --source=\"你的照片目录\"\n\n"
+            "python elodie.py generate-db --source=\"你的照片目录\"\n\n"
             "此操作会重建 ~/.elodie/hash.json 文件。"
         )
 
@@ -384,7 +392,7 @@ name=%time-%original_name-%title.%extension
             try:
                 with open(PRESETS_FILE, 'r', encoding='utf-8-sig') as f:
                     return json.load(f)
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 pass
         return dict(DEFAULT_PRESETS)
 

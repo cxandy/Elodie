@@ -1,14 +1,19 @@
 """Setup page - check and install ExifTool."""
+import os
 import shutil
 import subprocess
-import os
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QTextEdit, QGroupBox, QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
     QProgressBar,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
-from PySide6.QtCore import Qt, Signal
 
 from gui.workers.setup_worker import SetupWorker, detect_package_managers
 

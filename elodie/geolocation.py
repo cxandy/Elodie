@@ -2,7 +2,6 @@
 from __future__ import print_function
 from __future__ import division
 
-import json
 from os import path
 
 import requests
@@ -385,7 +384,6 @@ def parse_result_address(result):
             # If it's a type then check if it corresponds to one we are intereated in
             #   and store the index by parsing the key
             key_prefix = key[:-4]
-            key_index = key[-5:-4]
             if(locations[key].lower() in addresses):
                 addresses[locations[key].lower()] = locations[key_prefix]
                 index_found = True

@@ -1,24 +1,42 @@
 """Worker thread for import operations."""
 import os
+import re
 import threading
+from datetime import datetime
 
 from PySide6.QtCore import QThread, Signal
+from send2trash import send2trash as _send2trash
 
+from elodie import geolocation
 from elodie.compatability import _decode
 from elodie.dependencies import get_exiftool
 from elodie.filesystem import FileSystem
+from elodie.media.audio import Audio  # noqa: F401
 from elodie.media.base import get_all_subclasses
 from elodie.media.media import Media
+
 # Importing the concrete media subclasses registers them so that
 # get_all_subclasses() returns them and Media.get_class_by_file()
 # can recognize files. Without these imports every file is treated
 # as having no media class and silently skipped.
 from elodie.media.photo import Photo  # noqa: F401
-from elodie.media.video import Video  # noqa: F401
-from elodie.media.audio import Audio  # noqa: F401
 from elodie.media.text import Text  # noqa: F401
+from elodie.media.video import Video  # noqa: F401
 
 FILESYSTEM = FileSystem()
+
+TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+
+
+def _parse_time_string(time_string):
+    """Parse a user-supplied time string of the form YYYY-mm-dd or
+    YYYY-mm-dd HH:MM:SS into a datetime. Raises ValueError on failure."""
+    if not time_string:
+        return None
+    time_string = time_string.strip()
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', time_string):
+        time_string = f'{time_string} 00:00:00'
+    return datetime.strptime(time_string, TIME_FORMAT)
 
 
 class ImportWorker(QThread):
@@ -65,9 +83,6 @@ class ImportWorker(QThread):
         self._confirm_event.set()
 
     def run(self):
-        from elodie import geolocation
-        from send2trash import send2trash as _send2trash
-
         results = []
         total = len(self.files)
 
@@ -105,13 +120,7 @@ class ImportWorker(QThread):
                         )
 
                 if self.time:
-                    import re
-                    from datetime import datetime
-                    time_string = self.time
-                    time_format = '%Y-%m-%d %H:%M:%S'
-                    if re.match(r'^\d{4}-\d{2}-\d{2}$', time_string):
-                        time_string = '%s 00:00:00' % time_string
-                    dt = datetime.strptime(time_string, time_format)
+                    dt = _parse_time_string(self.time)
                     media.set_date_taken(dt)
 
                 dest_path = FILESYSTEM.process_file(
@@ -179,10 +188,6 @@ class UpdateWorker(QThread):
         self._cancelled = True
 
     def run(self):
-        from elodie import geolocation
-        import re
-        from datetime import datetime
-
         results = []
         total = len(self.files)
 
@@ -219,11 +224,7 @@ class UpdateWorker(QThread):
                         updated = True
 
                 if self.time:
-                    time_string = self.time
-                    time_format = '%Y-%m-%d %H:%M:%S'
-                    if re.match(r'^\d{4}-\d{2}-\d{2}$', time_string):
-                        time_string = '%s 00:00:00' % time_string
-                    dt = datetime.strptime(time_string, time_format)
+                    dt = _parse_time_string(self.time)
                     media.set_date_taken(dt)
                     updated = True
 

@@ -49,12 +49,12 @@ def test_has_album():
 
     assert album == 'Test Album', album
 
-def test_is_valid():
+def test_is_valid_plain():
     photo = Photo(helper.get_file('plain.jpg'))
 
     assert photo.is_valid()
 
-def test_is_not_valid():
+def test_is_not_valid_plain():
     photo = Photo(helper.get_file('text.txt'))
 
     assert not photo.is_valid()

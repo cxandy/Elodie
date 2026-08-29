@@ -3,18 +3,39 @@ import io
 import os
 from collections import OrderedDict
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QFileDialog, QTextEdit,
-    QGridLayout, QScrollArea, QFrame, QStackedWidget,
-)
 from PySide6.QtCore import (
-    Qt, QSize, QRectF, QPointF, QThreadPool, QRunnable,
-    QObject, Signal, QTimer,
+    QObject,
+    QPointF,
+    QRectF,
+    QRunnable,
+    QSize,
+    Qt,
+    QThreadPool,
+    QTimer,
+    Signal,
 )
 from PySide6.QtGui import (
-    QPixmap, QImage, QPainter, QColor, QPolygonF, QBrush, QPen, QFont,
+    QBrush,
+    QColor,
+    QFont,
     QFontMetrics,
+    QImage,
+    QPainter,
+    QPen,
+    QPixmap,
+    QPolygonF,
+)
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QStackedWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
 MAX_THUMB_CACHE = 200
@@ -392,8 +413,8 @@ class PreviewPage(QWidget):
     @staticmethod
     def _heic_to_png_bytes(filepath):
         try:
-            from PIL import Image
             import pillow_heif
+            from PIL import Image
             pillow_heif.register_heif_opener()
             with Image.open(filepath) as img:
                 img.load()
@@ -486,14 +507,14 @@ class PreviewPage(QWidget):
         return label
 
     def _show_info(self, filepath):
-        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QPushButton
+        from PySide6.QtWidgets import QDialog, QHBoxLayout, QPushButton, QVBoxLayout
         try:
-            from elodie.media.base import Base, get_all_subclasses
+            from elodie.media.audio import Audio  # noqa: F401
+            from elodie.media.base import get_all_subclasses
             from elodie.media.media import Media
             from elodie.media.photo import Photo  # noqa: F401
-            from elodie.media.video import Video  # noqa: F401
-            from elodie.media.audio import Audio  # noqa: F401
             from elodie.media.text import Text  # noqa: F401
+            from elodie.media.video import Video  # noqa: F401
 
             media = Media.get_class_by_file(filepath, get_all_subclasses())
             if not media:

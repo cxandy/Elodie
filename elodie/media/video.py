@@ -31,7 +31,7 @@ class Video(Media):
     extensions = ('avi', 'm4v', 'mov', 'mp4', 'mpg', 'mpeg', '3gp', 'mts')
 
     def __init__(self, source=None):
-        super(Video, self).__init__(source)
+        super().__init__(source)
         self.exif_map['date_taken'] = [
             'QuickTime:CreationDate',
             'QuickTime:CreateDate',
@@ -65,7 +65,7 @@ class Video(Media):
             return None
 
         source = self.source
-        seconds_since_epoch = min(os.path.getmtime(source), os.path.getctime(source))  # noqa
+        seconds_since_epoch = min(os.path.getmtime(source), os.path.getctime(source))
 
         exif = self.get_exiftool_attributes()
         for date_key in self.exif_map['date_taken']:
@@ -89,12 +89,12 @@ class Video(Media):
                             if date_offset is not None:
                                 offset_parts = date_offset[1:].split(':')
                                 offset_seconds = int(offset_parts[0]) * 3600
-                                offset_seconds = offset_seconds + int(offset_parts[1]) * 60  # noqa
+                                offset_seconds = offset_seconds + int(offset_parts[1]) * 60
                                 if date_offset[0] == '-':
-                                    seconds_since_epoch - offset_seconds
+                                    seconds_since_epoch = seconds_since_epoch - offset_seconds
                                 elif date_offset[0] == '+':
-                                    seconds_since_epoch + offset_seconds
-                    except:
+                                    seconds_since_epoch = seconds_since_epoch + offset_seconds
+                    except Exception:
                         pass
 
         if(seconds_since_epoch == 0):

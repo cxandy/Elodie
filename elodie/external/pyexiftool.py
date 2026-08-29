@@ -167,10 +167,10 @@ class Singleton(type):
 
     def __call__(cls, *args, **kwargs):
         if cls.instance is None:
-            cls.instance = super(Singleton, cls).__call__(*args, **kwargs)
+            cls.instance = super().__call__(*args, **kwargs)
         return cls.instance
 
-class ExifTool(object, with_metaclass(Singleton)):
+class ExifTool(with_metaclass(Singleton)):
     """Run the `exiftool` command-line tool and communicate to it.
 
     You can pass two arguments to the constructor:
@@ -333,7 +333,7 @@ class ExifTool(object, with_metaclass(Singleton)):
         # https://github.com/jmathai/elodie/issues/127
         try:
             return json.loads(self.execute(b"-j", *params).decode("utf-8"))
-        except UnicodeDecodeError as e:
+        except UnicodeDecodeError:
             return json.loads(self.execute(b"-j", *params).decode("latin-1"))
 
     def get_metadata_batch(self, filenames):

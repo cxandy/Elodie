@@ -234,7 +234,6 @@ def translate_location_dict(location_dict):
     if not location_dict:
         return location_dict
 
-    city = location_dict.get('city', '')
     state = location_dict.get('state', '')
     country_code = location_dict.get('country_code', '')
     subregion = location_dict.get('subregion', '')

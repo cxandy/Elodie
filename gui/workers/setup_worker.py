@@ -1,8 +1,8 @@
 """Worker thread for ExifTool installation."""
-import subprocess
 import os
-import shutil
 import re
+import shutil
+import subprocess
 
 from PySide6.QtCore import QThread, Signal
 
