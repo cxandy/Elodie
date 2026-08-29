@@ -164,7 +164,7 @@ name=%time-%original_name-%title.%extension
 | 简洁模式 | `年/月` |
 | 按日期分类 | `年-月-日` |
 | 专业模式 | `年/相机制造商 型号` |
-| **按地点分类** | **`国家/省, 城市/年/月`**（`full_path=%country/%location/%year/%month`，`location=%state, %city`） |
+| **按地点分类** | **`国家/省/市`**；文件名 `年月日_时分秒`（如 `2024-12-05_08.45.17.jpg`） |
 
 > 提示：使用「按地点分类」前，请先确认 `~/.elodie/config.ini` 的 `[Directory]` 是否与此一致。若之前加载的是旧预设，重新加载该预设即可。
 
