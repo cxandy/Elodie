@@ -403,11 +403,20 @@ class FileSystem(object):
             for this_part in path_part:
                 part, mask = this_part
                 this_path = self.get_dynamic_path(part, mask, metadata)
-                if this_path:
-                    path.append(this_path.strip())
-                    # We break as soon as we have a value to append
-                    # Else we continue for fallbacks
-                    break
+                if not this_path:
+                    continue
+                this_path = this_path.strip()
+                # When several independent location levels are missing
+                # (e.g. %country/%state/%city all fall back to the
+                # default) each one resolves to "Unknown Location", which
+                # stacks as duplicate folders. Keep at most one.
+                if (this_path == geolocation.__DEFAULT_LOCATION__
+                        and path and path[-1] == geolocation.__DEFAULT_LOCATION__):
+                    continue
+                path.append(this_path)
+                # We break as soon as we have a value to append
+                # Else we continue for fallbacks
+                break
         return os.path.join(*path)
 
     def get_dynamic_path(self, part, mask, metadata):
