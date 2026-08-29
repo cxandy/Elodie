@@ -1,3 +1,5 @@
+> **中文用户请阅读 [README_CN.md](README_CN.md)** —— 本仓库为带图形界面（GUI）的 Elodie 照片管理助手，中文文档描述了 GUI 版全部功能（导入 / 更新 / 预览 / 重复扫描 / 配置 / 打包等）。以下为上游原版英文命令行文档。
+
 # Hello, I'm Elodie
 ~~ *Your Personal EXIF-based Photo, Video and Audio Assistant* ~~
 
