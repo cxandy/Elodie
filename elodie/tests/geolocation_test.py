@@ -204,13 +204,15 @@ def test_place_name_cached(mock_location_db):
     helper.reset_dbs()
     with open(mock_location_db.return_value, 'w') as f:
         f.write("""
-[{"lat": 37.3667027222222, "long": -122.033383611111, "name": {"city": "UNITTEST"}}]
+[{"lat": 37.3667027222222, "long": -122.033383611111, "name": {"city": "Ningbo", "state": "Zhejiang", "default": "Ningbo"}}]
 """
     )
     place_name = geolocation.place_name(37.3667027222222, -122.033383611111)
     helper.restore_dbs()
 
-    assert place_name['city'] == 'UNITTEST', place_name
+    # A cached location is re-processed through the Chinese translation layer,
+    # so a city that ships in the bundled database (CITY_EXTRA) is translated.
+    assert place_name['city'] == '宁波市', place_name
 
 def test_place_name_no_default():
     # See gh-160 for backwards compatability needed when a string is stored instead of a dict

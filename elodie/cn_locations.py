@@ -3,10 +3,22 @@
 from __future__ import print_function
 from __future__ import division
 
+import logging
 import os
 import re
 
+import requests
+
 __geo_lang_cache = None
+
+# In-memory cache and API endpoint for the generic machine-translation
+# fallback. "None" means the lookup previously failed (or returned no
+# Chinese text) so we won't retry that name again this run.
+_mymemory_cache = {}
+_MYMEMORY_API = 'https://api.mymemory.translated.net/get'
+_MYMEMORY_TIMEOUT = 5
+
+log = logging.getLogger(__name__)
 
 # Fallback for provinces/regions/countries not in GeoLang (city-level only)
 _PROVINCE_COUNTRY = {
@@ -134,6 +146,45 @@ def _load_geolang():
     return __geo_lang_cache
 
 
+def _translate_via_mymemory(text):
+    """Machine-translate a single place name to Chinese via MyMemory.
+
+    Used only as a final fallback when the bundled databases have no entry,
+    so obscure/county-level names like "Haining" still get a Chinese folder
+    name. Results are cached per name for the current process. All failures
+    (network, timeouts, non-Chinese responses) return None so the caller can
+    silently keep the English name - this must never block an import.
+    """
+    if not text or not isinstance(text, str):
+        return None
+    if not any(c.isalpha() for c in text):
+        return None
+
+    cached = _mymemory_cache.get(text, False)
+    if cached is not False:
+        return cached
+
+    try:
+        resp = requests.get(
+            _MYMEMORY_API,
+            params={'q': text, 'langpair': 'en|zh-CN'},
+            timeout=_MYMEMORY_TIMEOUT,
+        )
+        resp.raise_for_status()
+        translated = resp.json().get('responseData', {}).get('translatedText', '')
+        if translated and isinstance(translated, str):
+            translated = translated.strip()
+            # Only accept responses we can actually use (contain Chinese).
+            if any('\u4e00' <= c <= '\u9fff' for c in translated):
+                _mymemory_cache[text] = translated
+                return translated
+    except (requests.exceptions.RequestException, ValueError) as e:
+        log.debug('MyMemory translation failed for %r: %s', text, e)
+
+    _mymemory_cache[text] = None
+    return None
+
+
 def translate_location(english_name, region=None, country_code=None):
     """Translate a single English location name to Chinese.
 
@@ -165,7 +216,13 @@ def translate_location(english_name, region=None, country_code=None):
         return result
 
     # 4. Fallback to built-in province/country mapping
-    return _PROVINCE_COUNTRY.get(english_name, english_name)
+    result = _PROVINCE_COUNTRY.get(english_name)
+    if result:
+        return result
+
+    # 5. Generic machine-translation fallback for anything still missing
+    #    (county-level cities, obscure place names, etc).
+    return _translate_via_mymemory(english_name) or english_name
 
 
 def translate_location_dict(location_dict):
@@ -184,17 +241,18 @@ def translate_location_dict(location_dict):
 
     result = {}
     for key, value in location_dict.items():
-        if isinstance(value, str):
-            if key == 'city':
-                # Compound key in GeoLang uses the province/state level
-                # (e.g. "CNZhejiang,Ningbo Shi,Cixi") so pass state first.
-                region_for_lookup = state if state else subregion
-                result[key] = translate_location(value, region_for_lookup, country_code)
-            elif key == 'default':
-                region_for_lookup = state if state else subregion
-                result[key] = translate_location(value, region_for_lookup, country_code)
-            else:
-                result[key] = translate_location(value)
+        if key == 'city':
+            # Compound key in GeoLang uses the province/state level
+            # (e.g. "CNZhejiang,Ningbo Shi,Cixi") so pass state first.
+            region_for_lookup = state if state else subregion
+            result[key] = translate_location(value, region_for_lookup, country_code)
+        elif key == 'default':
+            region_for_lookup = state if state else subregion
+            result[key] = translate_location(value, region_for_lookup, country_code)
+        elif key in ('state', 'country', 'subregion'):
+            result[key] = translate_location(value)
         else:
+            # Leave non-place-name keys (country_code, timezone, etc.) as-is;
+            # sending them to the translator would just waste an API call.
             result[key] = value
     return result
