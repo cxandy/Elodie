@@ -1164,7 +1164,12 @@ def test_get_folder_path_definition_default(mock_get_config_file):
     if hasattr(load_config, 'config'):
         del load_config.config
 
-    assert path_definition == [[('date', '%Y-%m-%b')], [('album', ''), ('location', '%city'), ('"Unknown Location"', '')]], path_definition
+    assert path_definition == [
+        [('country', '%country')],
+        [('city', '%city')],
+        [('year', '%Y')],
+        [('month', '%m')],
+    ], path_definition
 
 @mock.patch('elodie.config.get_config_file', return_value='%s/config.ini-date-location' % gettempdir())
 def test_get_folder_path_definition_date_location(mock_get_config_file):

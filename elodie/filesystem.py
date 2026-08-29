@@ -30,14 +30,15 @@ class FileSystem(object):
             'time': '%H-%M-%S',
             'name': '%time-%original_name-%title.%extension',
         }
-        # The default folder path is along the lines of 2015-01-Jan/Chicago
+        # The default folder path is organized by region first (country then
+        #  city), then by date: Country/City/Year/Month.
         self.default_folder_path_definition = {
+            'country': '%country',
+            'city': '%city',
             'year': '%Y',
             'month': '%m',
             'location': '%city',
-            'full_path': '%year/%month/%album|%location|"{}"'.format(
-                            geolocation.__DEFAULT_LOCATION__
-                         ),
+            'full_path': '%country/%city/%year/%month',
         }
         self.cached_file_name_definition = None
         self.cached_folder_path_definition = None
@@ -430,6 +431,16 @@ class FileSystem(object):
                 metadata['latitude'],
                 metadata['longitude']
             )
+
+            # Make every location key referenced by the mask present so that
+            # each directory level is independent. Without this, when a level
+            # is missing (e.g. no country) it silently falls back to 'default'
+            # and produces duplicated folders (Sunnyvale/Sunnyvale). Filling
+            # missing keys with 'Unknown Location' keeps each level clean.
+            for loc_key in re.findall(r'%([a-z]+)', mask):
+                if loc_key in ('city', 'state', 'country') \
+                        and loc_key not in place_name:
+                    place_name[loc_key] = geolocation.__DEFAULT_LOCATION__
 
             location_parts = re.findall('(%[^%]+)', mask)
             parsed_folder_name = self.parse_mask_for_location(
