@@ -83,6 +83,9 @@ class ImportPage(QWidget):
         self.chk_move.setChecked(True)
         options_layout.addRow(self.chk_move)
 
+        self.chk_keep_filename = QCheckBox("保留原文件名（不按模板重命名）")
+        options_layout.addRow(self.chk_keep_filename)
+
         self.chk_clean_empty = QCheckBox("导入后删除空目录")
         self.chk_clean_empty.setChecked(True)
         options_layout.addRow(self.chk_clean_empty)
@@ -209,6 +212,7 @@ class ImportPage(QWidget):
             allow_duplicates=self.chk_allow_duplicates.isChecked(),
             move=self.chk_move.isChecked(),
             clean_empty=self.chk_clean_empty.isChecked(),
+            keep_filename=self.chk_keep_filename.isChecked(),
             location=location,
             time=time_str,
         )

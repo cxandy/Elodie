@@ -539,6 +539,13 @@ class FileSystem(object):
         if('move' in kwargs):
             move = kwargs['move']
 
+        # When set, the source file name is kept as-is; only the folder
+        # structure is reorganized. When unset (default) the file is renamed
+        # according to the configured name template.
+        keep_filename = False
+        if('keep_filename' in kwargs):
+            keep_filename = kwargs['keep_filename']
+
         allow_duplicate = False
         if('allowDuplicate' in kwargs):
             allow_duplicate = kwargs['allowDuplicate']
@@ -565,7 +572,12 @@ class FileSystem(object):
 
         directory_name = self.get_folder_path(metadata)
         dest_directory = os.path.join(destination, directory_name)
-        file_name = self.get_file_name(metadata)
+        if keep_filename:
+            # Keep the original file name (with extension) untouched; only
+            # the destination folder is reorganized.
+            file_name = os.path.basename(_file)
+        else:
+            file_name = self.get_file_name(metadata)
         dest_path = os.path.join(dest_directory, file_name)        
 
         # If source and destination are identical then
