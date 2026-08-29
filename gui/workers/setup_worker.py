@@ -1,5 +1,6 @@
 """Worker thread for ExifTool installation."""
 import subprocess
+import os
 import shutil
 import re
 
@@ -26,6 +27,7 @@ class SetupWorker(QThread):
         self.progress_bar.emit(-1)
 
         try:
+            creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
             proc = subprocess.Popen(
                 self.command,
                 shell=True,
@@ -33,6 +35,7 @@ class SetupWorker(QThread):
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                creationflags=creationflags,
             )
 
             output_lines = []

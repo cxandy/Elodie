@@ -241,10 +241,15 @@ class ExifTool(object, with_metaclass(Singleton)):
                  "-common_args", "-G", "-n"];
             procargs.extend(self.addedargs)
             logging.debug(procargs) 
+            # On Windows, suppress the console window that would otherwise
+            # flash whenever the console-subsystem exiftool.exe is spawned from
+            # the windowed GUI, avoiding it covering the main window.
+            creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
             self._process = subprocess.Popen(
                 procargs,
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=devnull)
+                stderr=devnull,
+                creationflags=creationflags)
         self.running = True
 
     def terminate(self):

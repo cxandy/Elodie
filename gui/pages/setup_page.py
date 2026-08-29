@@ -1,6 +1,7 @@
 """Setup page - check and install ExifTool."""
 import shutil
 import subprocess
+import os
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
@@ -143,7 +144,9 @@ class SetupPage(QWidget):
             try:
                 r = subprocess.run(
                     ['exiftool', '-ver'],
-                    capture_output=True, text=True, timeout=10
+                    capture_output=True, text=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                    if os.name == "nt" else 0,
                 )
                 version = r.stdout.strip() if r.returncode == 0 else '未知版本'
             except Exception:
