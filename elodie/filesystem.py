@@ -456,6 +456,12 @@ class FileSystem(object):
                 location_parts,
                 place_name,
             )
+            # A combined level like "%state, %city" with neither part present
+            # produces "Unknown Location, Unknown Location". Collapse it to a
+            # single "Unknown Location" to keep location-less folders clean.
+            if parsed_folder_name.count(
+                    geolocation.__DEFAULT_LOCATION__) > 1:
+                parsed_folder_name = geolocation.__DEFAULT_LOCATION__
             return parsed_folder_name
         elif part in ('album', 'camera_make', 'camera_model'):
             if metadata[part]:
