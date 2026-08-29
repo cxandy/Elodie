@@ -435,11 +435,19 @@ class FileSystem(object):
             # Make every location key referenced by the mask present so that
             # each directory level is independent. Without this, when a level
             # is missing (e.g. no country) it silently falls back to 'default'
-            # and produces duplicated folders (Sunnyvale/Sunnyvale). Filling
-            # missing keys with 'Unknown Location' keeps each level clean.
+            # and produces duplicated folders (Sunnyvale/Sunnyvale).
+            # A missing country is filled with an empty string so its folder
+            # level is skipped entirely (avoiding 'Unknown Location/Unknown
+            # Location'); a missing city/state falls back to 'Unknown
+            # Location' so the folder still lands in a recognizable place.
             for loc_key in re.findall(r'%([a-z]+)', mask):
-                if loc_key in ('city', 'state', 'country') \
-                        and loc_key not in place_name:
+                if loc_key not in ('city', 'state', 'country'):
+                    continue
+                if loc_key in place_name:
+                    continue
+                if loc_key == 'country':
+                    place_name[loc_key] = ''
+                else:
                     place_name[loc_key] = geolocation.__DEFAULT_LOCATION__
 
             location_parts = re.findall('(%[^%]+)', mask)
