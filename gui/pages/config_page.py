@@ -74,7 +74,8 @@ name=%time-%original_name-%title.%extension
 country=%country
 state=%state
 city=%city
-full_path=%country/%state/%city
+date=%Y-%m
+full_path=%country/%state/%city/%date
 
 [File]
 time=%Y-%m-%d_%H.%M.%S
