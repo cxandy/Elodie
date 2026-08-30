@@ -4,7 +4,7 @@ import re
 import threading
 from datetime import datetime
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import Signal
 from send2trash import send2trash as _send2trash
 
 from elodie import geolocation
@@ -23,6 +23,8 @@ from elodie.media.photo import Photo  # noqa: F401
 from elodie.media.text import Text  # noqa: F401
 from elodie.media.video import Video  # noqa: F401
 
+from gui.workers.base_worker import BaseWorker
+
 FILESYSTEM = FileSystem()
 
 TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
@@ -39,7 +41,7 @@ def _parse_time_string(time_string):
     return datetime.strptime(time_string, TIME_FORMAT)
 
 
-class ImportWorker(QThread):
+class ImportWorker(BaseWorker):
     """Worker thread that imports files without blocking the UI."""
 
     progress = Signal(int, int, str)  # current, total, filename
@@ -62,12 +64,8 @@ class ImportWorker(QThread):
         self.location = location
         self.time = time
         self.keep_filename = keep_filename
-        self._cancelled = False
         self._confirm_event = threading.Event()
         self._confirm_result = False
-
-    def cancel(self):
-        self._cancelled = True
 
     def request_confirm(self, message, filepath):
         """Emit confirm signal and block until GUI responds."""
@@ -172,7 +170,7 @@ class ImportWorker(QThread):
                 pass
 
 
-class UpdateWorker(QThread):
+class UpdateWorker(BaseWorker):
     """Worker thread that updates file metadata without blocking the UI."""
 
     progress = Signal(int, int, str)
@@ -187,10 +185,6 @@ class UpdateWorker(QThread):
         self.time = time
         self.album = album
         self.title = title
-        self._cancelled = False
-
-    def cancel(self):
-        self._cancelled = True
 
     def run(self):
         results = []

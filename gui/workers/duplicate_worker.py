@@ -2,13 +2,15 @@
 import hashlib
 import os
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import Signal
 
 from elodie.media.photo import Photo
 from elodie.media.video import Video
 
+from gui.workers.base_worker import BaseWorker
 
-class DuplicateWorker(QThread):
+
+class DuplicateWorker(BaseWorker):
     """Scan a directory and group files whose content is identical.
 
     Files are first bucketed by their byte size; only files sharing a size
@@ -24,10 +26,6 @@ class DuplicateWorker(QThread):
     def __init__(self, directory):
         super().__init__()
         self.directory = directory
-        self._cancelled = False
-
-    def cancel(self):
-        self._cancelled = True
 
     def run(self):
         extensions = set(Photo.extensions) | set(Video.extensions)

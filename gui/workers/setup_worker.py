@@ -4,10 +4,12 @@ import re
 import shutil
 import subprocess
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import Signal
+
+from gui.workers.base_worker import BaseWorker
 
 
-class SetupWorker(QThread):
+class SetupWorker(BaseWorker):
     """Worker thread that installs ExifTool via a package manager.
 
     Reads output line by line to provide real-time progress updates.
