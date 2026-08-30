@@ -20,8 +20,33 @@ __DEFAULT_LOCATION__ = 'Unknown Location'
 __PREFER_ENGLISH_NAMES__ = None
 __EXIFTOOL_AVAILABLE__ = None
 
+# Process-wide cache of resolved place names keyed by bucketed coordinates.
+# Photos are usually taken in clusters around a spot during an import, so a
+# single off-disk lookup is reused for the whole batch.
+_LOCATION_CACHE = {}
+_LOCATION_BUCKET = 10.0
+_NAME_COORD_CACHE = {}
+
 
 def coordinates_by_name(name):
+    if name in _NAME_COORD_CACHE:
+        return _NAME_COORD_CACHE[name]
+    result = _coordinates_by_name_uncached(name)
+    _NAME_COORD_CACHE[name] = result
+    return result
+
+
+def clear_caches():
+    """Drop both process-wide lookup caches.
+
+    Used by tests (and batch boundaries) where the underlying location db
+    is mutated directly, so stale in-memory entries must not be reused.
+    """
+    _NAME_COORD_CACHE.clear()
+    _LOCATION_CACHE.clear()
+
+
+def _coordinates_by_name_uncached(name):
     # Try to get cached location first
     db = Db()
     cached_coordinates = db.get_location_coordinates(name)
@@ -222,6 +247,14 @@ def get_prefer_english_names():
     __PREFER_ENGLISH_NAMES__ = bool(config['MapQuest']['prefer_english_names'])
     return __PREFER_ENGLISH_NAMES__
 
+def _coordinate_bucket(lat, lon):
+    """Return a hashable key for the coordinate bucket used by the cache."""
+    return '{}/{}'.format(
+        int(lat * _LOCATION_BUCKET),
+        int(lon * _LOCATION_BUCKET)
+    )
+
+
 def place_name(lat, lon):
     lookup_place_name_default = {'default': __DEFAULT_LOCATION__}
     if(lat is None or lon is None):
@@ -233,6 +266,10 @@ def place_name(lat, lon):
     if(not isinstance(lon, float)):
         lon = float(lon)
 
+    bucket = _coordinate_bucket(lat, lon)
+    if(bucket in _LOCATION_CACHE):
+        return dict(_LOCATION_CACHE[bucket])
+
     # Try to get cached location first
     db = Db()
     # 3km distace radious for a match
@@ -241,7 +278,9 @@ def place_name(lat, lon):
     #  db from a string location to a dictionary. See gh-160.
     if(isinstance(cached_place_name, dict)):
         from elodie.cn_locations import translate_location_dict
-        return translate_location_dict(cached_place_name)
+        translated = translate_location_dict(cached_place_name)
+        _LOCATION_CACHE[bucket] = translated
+        return dict(translated)
 
     lookup_place_name = {}
     
@@ -267,15 +306,15 @@ def place_name(lat, lon):
         if exiftool_result is not None:
             lookup_place_name = exiftool_result
 
-    if(lookup_place_name):
+    if lookup_place_name:
         db.add_location(lat, lon, lookup_place_name)
-        # TODO: Maybe this should only be done on exit and not for every write.
         db.update_location_db()
 
     if('default' not in lookup_place_name):
         lookup_place_name = lookup_place_name_default
 
-    return lookup_place_name
+    _LOCATION_CACHE[bucket] = lookup_place_name
+    return dict(lookup_place_name)
 
 
 def lookup(**kwargs):

@@ -152,7 +152,8 @@ def reset_dbs():
     """ Back up hash_db and location_db """
     # This is no longer needed. See gh-322
     # https://github.com/jmathai/elodie/issues/322
-    pass
+    from elodie import geolocation
+    geolocation.clear_caches()
 
 def restore_dbs():
     """ Restore back ups of hash_db and location_db """
