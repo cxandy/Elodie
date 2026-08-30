@@ -4,6 +4,7 @@ import os
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -69,6 +70,9 @@ class DuplicatePage(QWidget):
         self.status_label.setVisible(False)
         layout.addWidget(self.status_label)
 
+        self.chk_same_dir = QCheckBox("只查找同目录重复文件")
+        layout.addWidget(self.chk_same_dir)
+
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["保留", "文件路径"])
         self.tree.setRootIsDecorated(True)
@@ -105,7 +109,7 @@ class DuplicatePage(QWidget):
         self.status_label.setVisible(True)
         self.status_label.setText("正在收集文件...")
 
-        self.worker = DuplicateWorker(directory)
+        self.worker = DuplicateWorker(directory, same_dir_only=self.chk_same_dir.isChecked())
         self.worker.progress.connect(self._on_progress)
         self.worker.status.connect(self.status_label.setText)
         self.worker.finished.connect(self._on_finished)

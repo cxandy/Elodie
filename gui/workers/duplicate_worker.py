@@ -17,15 +17,20 @@ class DuplicateWorker(BaseWorker):
     can possibly be duplicates, so the full SHA-256 hash is computed only on
     those candidates. Files whose hashes match are reported as a duplicate
     group (at least two members).
+
+    If ``same_dir_only`` is True, only groups where all files reside in the
+    same directory are kept; duplicates across different directories are
+    discarded.
     """
 
     progress = Signal(int, int)  # scanned, total candidates
     status = Signal(str)
     finished = Signal(list)  # list of [hash, [path, ...]], each >= 2 members
 
-    def __init__(self, directory):
+    def __init__(self, directory, same_dir_only=False):
         super().__init__()
         self.directory = directory
+        self.same_dir_only = same_dir_only
 
     def run(self):
         extensions = set(Photo.extensions) | set(Video.extensions)
@@ -74,7 +79,7 @@ class DuplicateWorker(BaseWorker):
         self.finished.emit(self._groups_from(hash_to_paths))
 
     @classmethod
-    def scan(cls, directory):
+    def scan(cls, directory, same_dir_only=False):
         """Scans ``directory`` and returns duplicate groups synchronously.
 
         Each group is ``[hash, [path, ...]]`` with at least two members.
@@ -106,7 +111,7 @@ class DuplicateWorker(BaseWorker):
                 if digest:
                     hash_to_paths.setdefault(digest, []).append(path)
 
-        return cls._groups_from(hash_to_paths)
+        return cls._groups_from(hash_to_paths, same_dir_only)
 
     @staticmethod
     def _sha256(path, blocksize=65536):
@@ -120,9 +125,16 @@ class DuplicateWorker(BaseWorker):
         return hasher.hexdigest()
 
     @staticmethod
-    def _groups_from(hash_to_paths):
-        return [
+    def _groups_from(hash_to_paths, same_dir_only=False):
+        groups = [
             [digest, paths]
             for digest, paths in hash_to_paths.items()
             if len(paths) >= 2
         ]
+        if same_dir_only:
+            groups = [
+                [digest, paths]
+                for digest, paths in groups
+                if len(set(os.path.dirname(p) for p in paths)) == 1
+            ]
+        return groups
