@@ -1,5 +1,6 @@
 """Import page - select files and destination for import."""
 import os
+import time
 
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -210,6 +211,9 @@ class ImportPage(QWidget):
         self.progress_label.setVisible(True)
         self.result_text.setVisible(False)
 
+        # Reset ETA accounting for this import run.
+        self._import_start_time = time.time()
+
         location = self.location_input.text() or None
         time_str = self.time_input.text() or None
 
@@ -232,7 +236,28 @@ class ImportPage(QWidget):
 
     def _on_progress(self, current, total, filename):
         self.progress_bar.setValue(current)
-        self.progress_label.setText(f"正在处理 ({current}/{total}): {filename}")
+
+        eta = ""
+        if current > 0 and total > current:
+            start = getattr(self, "_import_start_time", None) or time.time()
+            elapsed = time.time() - start
+            avg = elapsed / current
+            remaining = (total - current) * avg
+            eta = f" | 剩余约 {self._format_duration(remaining)}"
+
+        self.progress_label.setText(
+            f"正在处理 ({current}/{total}): {filename}{eta}"
+        )
+
+    @staticmethod
+    def _format_duration(seconds):
+        """Format a number of seconds as 'Hh Mm' / 'Xm Ys' / 'Zs'."""
+        seconds = max(0, int(round(seconds)))
+        if seconds >= 3600:
+            return f"{seconds // 3600}小时 {seconds % 3600 // 60}分钟"
+        if seconds >= 60:
+            return f"{seconds // 60}分钟 {seconds % 60}秒"
+        return f"{seconds}秒"
 
     def _cancel_import(self):
         if self.worker:
