@@ -36,7 +36,10 @@ class DuplicateWorker(BaseWorker):
         extensions = set(Photo.extensions) | set(Video.extensions)
 
         # Pass 1: collect files with their sizes.
-        size_to_paths = {}
+        # When same_dir_only, key by (size, directory) so files in
+        # different directories never share a bucket and are never
+        # hashed together.  This is the main performance win.
+        size_key_to_paths = {}
         total = 0
         for root, _dirs, files in os.walk(self.directory):
             for name in files:
@@ -50,17 +53,18 @@ class DuplicateWorker(BaseWorker):
                     size = os.path.getsize(path)
                 except OSError:
                     continue
-                size_to_paths.setdefault(size, []).append(path)
+                key = (size, root) if self.same_dir_only else size
+                size_key_to_paths.setdefault(key, []).append(path)
                 total += 1
 
-        # Candidates: sizes that occur more than once.
-        candidates = [p for paths in size_to_paths.values()
+        # Candidates: buckets that contain more than one file.
+        candidates = [p for paths in size_key_to_paths.values()
                       if len(paths) > 1 for p in paths]
 
-        # Pass 2: hash only the candidate files that share a size.
+        # Pass 2: hash only the candidate files that share a key.
         hash_to_paths = {}
         scanned = 0
-        for paths in size_to_paths.values():
+        for paths in size_key_to_paths.values():
             if len(paths) < 2:
                 continue
             for path in paths:
@@ -85,9 +89,13 @@ class DuplicateWorker(BaseWorker):
         Each group is ``[hash, [path, ...]]`` with at least two members.
         Files that share no size with any other are skipped to avoid hashing
         every file.
+
+        When ``same_dir_only`` is True, only groups where all files are in
+        the same directory are reported; cross-directory duplicates are
+        skipped entirely, saving hash computation.
         """
         extensions = set(Photo.extensions) | set(Video.extensions)
-        size_to_paths = {}
+        size_key_to_paths = {}
         for root, _dirs, files in os.walk(directory):
             for name in files:
                 if os.path.splitext(name)[1][1:].lower() not in extensions:
@@ -97,10 +105,11 @@ class DuplicateWorker(BaseWorker):
                     size = os.path.getsize(path)
                 except OSError:
                     continue
-                size_to_paths.setdefault(size, []).append(path)
+                key = (size, root) if same_dir_only else size
+                size_key_to_paths.setdefault(key, []).append(path)
 
         hash_to_paths = {}
-        for paths in size_to_paths.values():
+        for paths in size_key_to_paths.values():
             if len(paths) < 2:
                 continue
             for path in paths:
@@ -111,7 +120,7 @@ class DuplicateWorker(BaseWorker):
                 if digest:
                     hash_to_paths.setdefault(digest, []).append(path)
 
-        return cls._groups_from(hash_to_paths, same_dir_only)
+        return cls._groups_from(hash_to_paths)
 
     @staticmethod
     def _sha256(path, blocksize=65536):
