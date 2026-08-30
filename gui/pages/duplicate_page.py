@@ -159,15 +159,16 @@ class DuplicatePage(QWidget):
 
     def _delete_selected(self):
         to_delete = []
-        # --- 收集被勾选的路径 ---
-        # PySide6: checkState 返回 CheckState枚举 (0=Unchecked, 1=PartiallyChecked, 2=Checked)
-        # 使用 Qt.CheckState.Checked 进行比较——为兼容各平台/版本，避免直接整数比较失效
         for i in range(self.tree.topLevelItemCount()):
             group_item = self.tree.topLevelItem(i)
             for j in range(group_item.childCount()):
                 child = group_item.child(j)
-                if child.checkState(0) == Qt.CheckState.Checked:
-                    to_delete.append(child.text(1))
+                # PySide6: checkState returns int 2 for Checked (not enum)
+                if child.checkState(0) == 2:
+                    raw_path = child.text(1)
+                    # Normalize path: fix slashes and convert to absolute
+                    clean_path = os.path.abspath(os.path.normpath(raw_path))
+                    to_delete.append(clean_path)
 
         if not to_delete:
             QMessageBox.information(self, "提示", "未勾选任何副本。")
@@ -197,20 +198,22 @@ class DuplicatePage(QWidget):
                     deleted += 1
             except FileNotFoundError:
                 failed.append(path)
-                failed_details.append(f"文件未找到: {path}")
+                failed_details.append(f"文件未找到: {os.path.basename(path)}")
             except PermissionError:
                 failed.append(path)
-                failed_details.append(f"权限不足: {path}")
+                failed_details.append(f"权限不足: {os.path.basename(path)}")
             except Exception as e:
                 failed.append(path)
-                failed_details.append(f"错误: {type(e).__name__}: {e}")
+                failed_details.append(f"错误: {type(e).__name__}: {str(e)[:50]}")
 
         self._remove_deleted_from_tree(to_delete)
         self.status_label.setVisible(True)
         if failed:
-            detail_ = "；".join(failed_details[:2])
+            # Show first 2 failure details
+            detail_text = "；".join(failed_details[:2])
             self.status_label.setText(
-                f"已移除 {deleted} 个副本，失败：{detail_}" + (f"，共{len(failed)}个文件失败" if len(failed) > 2 else "")
+                f"已移除 {deleted} 个副本，失败：{detail_text}" + 
+                (f"，共{len(failed)}个" if len(failed) > 2 else "")
             )
         else:
             self.status_label.setText(f"已移除 {deleted} 个副本")
