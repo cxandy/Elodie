@@ -1,5 +1,7 @@
 """Duplicate page - scan a directory and manage duplicate files."""
+import json
 import os
+import shutil
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -178,49 +180,114 @@ class DuplicatePage(QWidget):
             QMessageBox.information(self, "提示", "未勾选任何副本。")
             return
 
+        # --- 安全移动开始 ---
+        # 目标目录：原目录名_重复文件
+        base_dir = os.path.dirname(to_delete[0])
+        target_dir = os.path.join(base_dir, "_重复文件")
+        os.makedirs(target_dir, exist_ok=True)
+
+        # 移动日志路径
+        log_path = os.path.join(target_dir, "move_log.json")
+
+        # 读取已有日志（断点续传）
+        moved_set = set()
+        if os.path.exists(log_path):
+            try:
+                with open(log_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    moved_set = set(data.get("moved", []))
+            except Exception:
+                moved_set = set()
+
+        # 获取相对于基目录的相对路径，用于比较和目标路径构造
+        rel_base = base_dir
+
+        # 过滤掉已移动的文件
+        remaining = []
+        for path in to_delete:
+            try:
+                rel = os.path.relpath(path, base_dir)
+                if rel not in moved_set:
+                    remaining.append(path)
+                else:
+                    moved_set.add(path)  # 确保集合里有这项
+            except ValueError:
+                remaining.append(path)  # 路径异常，依旧参与移动
+
+        deleted = len(moved_set)
+
+        if not remaining:
+            QMessageBox.information(self, "提示", "所有已选文件已 previously 移动过。")
+            return
+
+        # 确认弹窗
         reply = QMessageBox.question(
-            self, "确认删除",
-            f"确定将 {len(to_delete)} 个重复副本移到回收站吗？",
+            self, "确认移动",
+            f"确定将 {len(remaining)} 个重复副本移动到 {os.path.basename(target_dir)} 吗？\n"
+            f"（中途如意外，可用日志恢复，原文件不受影响）",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        try:
-            from send2trash import send2trash as _send2trash
-        except Exception:
-            QMessageBox.critical(self, "错误", "无法加载 send2trash。")
-            return
-
-        deleted = 0
+# 移动循环
         failed = []
         failed_details = []
-        for path in to_delete:
-            try:
-                if os.path.isfile(path):
-                    _send2trash(path)
-                    deleted += 1
-            except FileNotFoundError:
-                failed.append(path)
-                failed_details.append(f"文件未找到: {os.path.basename(path)}")
-            except PermissionError:
-                failed.append(path)
-                failed_details.append(f"权限不足: {os.path.basename(path)}")
-            except Exception as e:
-                failed.append(path)
-                failed_details.append(f"错误: {type(e).__name__}: {str(e)[:50]}")
+        count = 0
 
-        self._remove_deleted_from_tree(to_delete)
+        for i, path in enumerate(remaining):
+            try:
+                # 计算相对路径和目标路径
+                rel = os.path.relpath(path, base_dir)
+                target_path = os.path.join(target_dir, rel)
+                # 关键检查：如果目标已存在，跳过防止覆盖重要文件
+                if os.path.exists(target_path):
+                    failed.append((path, "目标已存在，已跳过"))
+                    continue
+                # 确保目标目录存在
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                # 执行移动
+                shutil.move(path, target_path)
+                moved_set.add(path)
+                count += 1
+
+                # 每 50 个文件刷新日志，防止丢失
+                if (i + 1) % 50 == 0:
+                    self._flush_log(log_path, moved_set)
+
+                # 更新进度显示
+                self.status_label.setVisible(True)
+                self.status_label.setText(f"已移动 {len(moved_set) + len(failed)} / {len(to_delete)}")
+
+            except Exception as e:
+                failed.append((path, str(e)[:60]))
+
+        # 最后一次刷新日志
+        self._flush_log(log_path, moved_set)
+
+        # 更新进度显示
         self.status_label.setVisible(True)
         if failed:
-            # Show first 2 failure details
             detail_text = "；".join(failed_details[:2])
             self.status_label.setText(
-                f"已移除 {deleted} 个副本，失败：{detail_text}" + 
+                f"已移动 {len(moved_set)} / {len(to_delete)}，失败：{detail_text}" + 
                 (f"，共{len(failed)}个" if len(failed) > 2 else "")
             )
         else:
-            self.status_label.setText(f"已移除 {deleted} 个副本")
+            self.status_label.setText(f"已移动 {len(moved_set)} / {len(to_delete)}")
+
+        # 移除树中的条目
+        self._remove_deleted_from_tree(to_delete)
+
+        return
+
+    def _flush_log(self, log_path, moved_set):
+        """将移动日志写入磁盘"""
+        try:
+            with open(log_path, 'w', encoding='utf-8') as f:
+                json.dump({"moved": list(moved_set)}, f, ensure_ascii=False)
+        except Exception:
+            pass  # 日志写入失败不中断主流程
 
     def _remove_deleted_from_tree(self, paths_to_remove):
         removed_set = set(paths_to_remove)
