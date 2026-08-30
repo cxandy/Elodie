@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from elodie import constants
-from elodie.config import get_config_file, load_config
+from elodie.config import get_config_file, invalidate_config
 
 PRESETS_FILE = os.path.join(constants.application_directory(), 'presets.json')
 
@@ -321,6 +321,9 @@ name=%time-%original_name-%title.%extension
         with open(config_file, 'w', encoding='utf-8-sig') as f:
             f.write(content)
 
+        # Drop the cached config so subsequent imports use the new settings.
+        invalidate_config()
+
         QMessageBox.information(self, "成功", "配置已保存")
 
     def _show_help(self):
@@ -415,8 +418,7 @@ name=%time-%original_name-%title.%extension
             with open(config_file, 'w', encoding='utf-8-sig') as f:
                 f.write(presets[name])
 
-            if hasattr(load_config, "config"):
-                del load_config.config
+            invalidate_config()
 
             QMessageBox.information(self, "成功", f"已加载并应用预设「{name}」")
 

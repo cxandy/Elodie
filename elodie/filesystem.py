@@ -637,15 +637,19 @@ class FileSystem(object):
             file_name = self.get_file_name(metadata)
         dest_path = os.path.join(dest_directory, file_name)
 
+        # If source and destination are identical then
+        #  we should not write the file. gh-210
+        # This must be checked BEFORE _unique_destination() renames an
+        # existing file to "name (1).jpg", otherwise re-importing an already
+        # organized library creates duplicates. Compare absolute paths so a
+        # relative/absolute mismatch does not bypass the guard.
+        if(os.path.abspath(_file) == os.path.abspath(dest_path)):
+            print('Final source and destination path should not be identical')
+            return
+
         # If a file already exists at the destination, do not overwrite it
         # silently; pick a non-conflicting name instead (e.g. "x (1).jpg").
         dest_path = self._unique_destination(dest_path)
-
-        # If source and destination are identical then
-        #  we should not write the file. gh-210
-        if(_file == dest_path):
-            print('Final source and destination path should not be identical')
-            return
 
         self.create_directory(dest_directory)
 
@@ -661,17 +665,20 @@ class FileSystem(object):
             exif_original_file_exists = True
 
         if(move is True):
-            stat = os.stat(_file)
             # Move the processed file into the destination directory
             self._file_operation('move', _file, dest_path)
 
             if(exif_original_file_exists is True):
                 # We can remove it as we don't need the initial file.
                 self._file_operation('remove', exif_original_file)
+            # Restore the capture time derived from metadata, matching the
+            # copy path. Using os.stat here would keep the exiftool write
+            # time (metadata is tagged before process_file), losing the
+            # original capture mtime.
             if not constants.dry_run:
-                os.utime(dest_path, (stat.st_atime, stat.st_mtime))
+                self.set_utime_from_metadata(metadata, dest_path)
             else:
-                print(f"[DRY-RUN] Would set utime for: {dest_path}")
+                print(f"[DRY-RUN] Would set utime from metadata for: {dest_path}")
         else:
             if(exif_original_file_exists is True):
                 # Move the newly processed file with any updated tags to the

@@ -21,6 +21,17 @@ def load_config():
     load_config.config.read(config_file, encoding='utf-8-sig')
     return load_config.config
 
+
+def invalidate_config():
+    """Drop the cached config so ``load_config`` re-reads the file.
+
+    Called whenever the config file is rewritten at runtime (e.g. the GUI
+    settings page), otherwise the app keeps using the stale loaded copy.
+    """
+    if hasattr(load_config, "config"):
+        del load_config.config
+
+
 def load_plugin_config():
     config = load_config()
 
