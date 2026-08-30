@@ -159,12 +159,18 @@ class DuplicatePage(QWidget):
 
     def _delete_selected(self):
         to_delete = []
+        # --- 收集被勾选的路径 ---
+        # PySide6: checkState 返回整数 0=Unchecked, 1=PartiallyChecked, 2=Checked
         for i in range(self.tree.topLevelItemCount()):
             group_item = self.tree.topLevelItem(i)
             for j in range(group_item.childCount()):
                 child = group_item.child(j)
-                if child.checkState(0) == Qt.CheckState.Checked:
-                    to_delete.append(child.text(1))
+                if child.checkState(0) == 2:
+                    raw_path = child.text(1)
+                    # 标准化路径：统一分隔符 (Windows 反斜杠) 并转绝对路径，
+                    # 防止 send2trash 因正斜杠/相对路径而在 Windows 上静默失败。
+                    clean_path = os.path.abspath(os.path.normpath(raw_path))
+                    to_delete.append(clean_path)
 
         if not to_delete:
             QMessageBox.information(self, "提示", "未勾选任何副本。")
@@ -186,20 +192,35 @@ class DuplicatePage(QWidget):
 
         deleted = 0
         failed = []
+        failed_details = []
         for path in to_delete:
             try:
                 if os.path.isfile(path):
                     _send2trash(path)
                     deleted += 1
-            except Exception:
+            except FileNotFoundError:
+                # 文件可能已被外部删除
                 failed.append(path)
+                failed_details.append(f"文件未找到: {path}")
+            except PermissionError:
+                # 权限不足，可能是系统文件或被占用
+                failed.append(path)
+                failed_details.append(f"权限不足: {path}")
+            except Exception as e:
+                # 其他错误
+                failed.append(path)
+                failed_details.append(f"错误: {type(e).__name__}: {e}")
 
         self._remove_deleted_from_tree(to_delete)
         self.status_label.setVisible(True)
-        self.status_label.setText(
-            f"已移除 {deleted} 个副本"
-            + (f"，{len(failed)} 个失败" if failed else "")
-        )
+        if failed:
+            # 只前置展示前两条失败详情，避免文字过长
+            detail_ = "；".join(failed_details[:2])
+            self.status_label.setText(
+                f"已移除 {deleted} 个副本，失败：{detail_}" + (f"，共{len(failed)}个文件失败" if len(failed) > 2 else "")
+            )
+        else:
+            self.status_label.setText(f"已移除 {deleted} 个副本")
 
     def _remove_deleted_from_tree(self, paths_to_remove):
         removed_set = set(paths_to_remove)
