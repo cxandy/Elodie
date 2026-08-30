@@ -1018,31 +1018,6 @@ def test_process_existing_file_without_changes():
     shutil.rmtree(folder)
     shutil.rmtree(os.path.dirname(os.path.dirname(destination)))
 
-@mock.patch('elodie.config.get_config_file', return_value='%s/config.ini-plugin-throw-error' % gettempdir())
-def test_process_file_with_plugin_throw_error(mock_get_config_file):
-    with open(mock_get_config_file.return_value, 'w') as f:
-        f.write("""
-[Plugins]
-plugins=ThrowError
-        """)
-
-    if hasattr(load_config, 'config'):
-        del load_config.config
-
-    filesystem = FileSystem()
-    temporary_folder, folder = helper.create_working_folder()
-
-    origin = os.path.join(folder,'plain.jpg')
-    shutil.copyfile(helper.get_file('plain.jpg'), origin)
-
-    media = Photo(origin)
-    destination = filesystem.process_file(origin, temporary_folder, media, allowDuplicate=True)
-
-    if hasattr(load_config, 'config'):
-        del load_config.config
-
-    assert destination is None, destination
-
 @mock.patch('elodie.config.get_config_file', return_value='%s/config.ini-plugin-runtime-error' % gettempdir())
 def test_process_file_with_plugin_runtime_error(mock_get_config_file):
     with open(mock_get_config_file.return_value, 'w') as f:

@@ -293,23 +293,6 @@ class ConfigPage(QWidget):
 
         self._load_presets()
 
-        tools_group = QGroupBox("工具")
-        tools_layout = QHBoxLayout()
-
-        btn_generate_db = QPushButton("重建哈希数据库")
-        btn_generate_db.setToolTip("重新扫描照片库并生成 hash.json")
-        btn_generate_db.clicked.connect(self._show_generate_db_info)
-        tools_layout.addWidget(btn_generate_db)
-
-        btn_verify = QPushButton("验证文件完整性")
-        btn_verify.setToolTip("检查照片库中的文件是否损坏")
-        btn_verify.clicked.connect(self._show_verify_info)
-        tools_layout.addWidget(btn_verify)
-
-        tools_layout.addStretch()
-        tools_group.setLayout(tools_layout)
-        layout.addWidget(tools_group)
-
     def _load_config_content(self):
         config_file = get_config_file()
         if os.path.exists(config_file):
@@ -364,22 +347,6 @@ name=%time-%original_name-%title.%extension
         dlg_layout.addWidget(buttons)
 
         dlg.exec()
-
-    def _show_generate_db_info(self):
-        QMessageBox.information(
-            self, "重建数据库",
-            "请在终端中运行以下命令:\n\n"
-            "python elodie.py generate-db --source=\"你的照片目录\"\n\n"
-            "此操作会重建 ~/.elodie/hash.json 文件。"
-        )
-
-    def _show_verify_info(self):
-        QMessageBox.information(
-            self, "验证文件",
-            "请在终端中运行以下命令:\n\n"
-            "python elodie.py verify\n\n"
-            "此操作会检查所有已导入文件的完整性。"
-        )
 
     def _load_presets(self):
         presets = self._read_presets()
