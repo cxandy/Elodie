@@ -67,7 +67,7 @@ def test_get_date_taken():
 
     date_taken = text.get_date_taken()
 
-    assert date_taken == helper.time_convert((2016, 4, 7, 11, 15, 26, 3, 98, 0)), date_taken
+    assert date_taken == time.gmtime(1460027726.0), date_taken
 
 def test_get_date_taken_from_invalid():
     origin = helper.get_file('valid-without-header.txt')

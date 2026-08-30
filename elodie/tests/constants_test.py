@@ -66,7 +66,7 @@ def test_script_directory():
 
 def test_exiftool_config():
     path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    assert '{}/configs/ExifTool_config'.format(path) == constants.exiftool_config, constants.exiftool_config
+    assert os.path.join(path, 'configs', 'ExifTool_config') == constants.exiftool_config, constants.exiftool_config
 
 def test_mapquest_base_url_default():
     assert constants.mapquest_base_url == 'https://www.mapquestapi.com', constants.mapquest_base_url
