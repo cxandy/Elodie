@@ -13,7 +13,7 @@ from elodie.config import load_config
 from elodie import constants
 from elodie import log
 from elodie.localstorage import Db
-from elodie.external.pyexiftool import ExifTool
+from elodie.media.media import _get_exiftool
 
 __KEY__ = None
 __DEFAULT_LOCATION__ = 'Unknown Location'
@@ -112,9 +112,9 @@ def is_exiftool_available():
         return __EXIFTOOL_AVAILABLE__
     
     try:
-        with ExifTool() as et:
-            result = et.execute_json(b"-api", b"geolocation=40.7128,-74.0060")
-            __EXIFTOOL_AVAILABLE__ = result and len(result) > 0 and 'ExifTool:GeolocationCity' in result[0]
+        et = _get_exiftool()
+        result = et.execute_json(b"-api", b"geolocation=40.7128,-74.0060")
+        __EXIFTOOL_AVAILABLE__ = result and len(result) > 0 and 'ExifTool:GeolocationCity' in result[0]
     except Exception:
         __EXIFTOOL_AVAILABLE__ = False
     
@@ -127,15 +127,15 @@ def exiftool_coordinates_by_name(name):
         return None
     
     try:
-        with ExifTool() as et:
-            result = et.execute_json(b"-api", f"geolocation={name}".encode('utf-8'))
-            if result and len(result) > 0 and 'ExifTool:GeolocationPosition' in result[0]:
-                position = result[0]['ExifTool:GeolocationPosition']
-                lat, lon = position.split()
-                return {
-                    'latitude': float(lat),
-                    'longitude': float(lon)
-                }
+        et = _get_exiftool()
+        result = et.execute_json(b"-api", f"geolocation={name}".encode('utf-8'))
+        if result and len(result) > 0 and 'ExifTool:GeolocationPosition' in result[0]:
+            position = result[0]['ExifTool:GeolocationPosition']
+            lat, lon = position.split()
+            return {
+                'latitude': float(lat),
+                'longitude': float(lon)
+            }
     except Exception as e:
         log.error(f"ExifTool geolocation lookup failed: {e}")
     
@@ -148,39 +148,39 @@ def exiftool_place_name(lat, lon):
         return None
     
     try:
-        with ExifTool() as et:
-            result = et.execute_json(b"-api", f"geolocation={lat},{lon}".encode('utf-8'))
-            if result and len(result) > 0:
-                data = result[0]
-                location_data = {}
-                
-                if 'ExifTool:GeolocationCity' in data and data['ExifTool:GeolocationCity'].strip():
-                    location_data['city'] = data['ExifTool:GeolocationCity']
-                    if 'default' not in location_data:
-                        location_data['default'] = data['ExifTool:GeolocationCity']
-                
-                if 'ExifTool:GeolocationRegion' in data and data['ExifTool:GeolocationRegion'].strip():
-                    location_data['state'] = data['ExifTool:GeolocationRegion']
-                    if 'default' not in location_data:
-                        location_data['default'] = data['ExifTool:GeolocationRegion']
-                
-                if 'ExifTool:GeolocationCountry' in data and data['ExifTool:GeolocationCountry'].strip():
-                    location_data['country'] = data['ExifTool:GeolocationCountry']
-                    if 'default' not in location_data:
-                        location_data['default'] = data['ExifTool:GeolocationCountry']
+        et = _get_exiftool()
+        result = et.execute_json(b"-api", f"geolocation={lat},{lon}".encode('utf-8'))
+        if result and len(result) > 0:
+            data = result[0]
+            location_data = {}
 
-                # Pass country_code for compound-key translation lookup
-                if 'ExifTool:GeolocationCountryCode' in data:
-                    location_data['country_code'] = data['ExifTool:GeolocationCountryCode']
+            if 'ExifTool:GeolocationCity' in data and data['ExifTool:GeolocationCity'].strip():
+                location_data['city'] = data['ExifTool:GeolocationCity']
+                if 'default' not in location_data:
+                    location_data['default'] = data['ExifTool:GeolocationCity']
 
-                # Pass subregion for compound-key translation lookup
-                if 'ExifTool:GeolocationSubregion' in data:
-                    location_data['subregion'] = data['ExifTool:GeolocationSubregion']
-                
-                if location_data:
-                    from elodie.cn_locations import translate_location_dict
-                    return translate_location_dict(location_data)
-                
+            if 'ExifTool:GeolocationRegion' in data and data['ExifTool:GeolocationRegion'].strip():
+                location_data['state'] = data['ExifTool:GeolocationRegion']
+                if 'default' not in location_data:
+                    location_data['default'] = data['ExifTool:GeolocationRegion']
+
+            if 'ExifTool:GeolocationCountry' in data and data['ExifTool:GeolocationCountry'].strip():
+                location_data['country'] = data['ExifTool:GeolocationCountry']
+                if 'default' not in location_data:
+                    location_data['default'] = data['ExifTool:GeolocationCountry']
+
+            # Pass country_code for compound-key translation lookup
+            if 'ExifTool:GeolocationCountryCode' in data:
+                location_data['country_code'] = data['ExifTool:GeolocationCountryCode']
+
+            # Pass subregion for compound-key translation lookup
+            if 'ExifTool:GeolocationSubregion' in data:
+                location_data['subregion'] = data['ExifTool:GeolocationSubregion']
+
+            if location_data:
+                from elodie.cn_locations import translate_location_dict
+                return translate_location_dict(location_data)
+
     except Exception as e:
         log.error(f"ExifTool place name lookup failed: {e}")
     

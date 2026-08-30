@@ -108,20 +108,25 @@ class ImportWorker(QThread):
                     results.append((filepath, None, False))
                     continue
 
+                album = None
                 if self.album_from_folder:
-                    media.set_album_from_folder()
+                    meta = media.get_metadata()
+                    if isinstance(meta, dict) and meta.get('album') is None:
+                        folder = os.path.basename(meta.get('directory_path') or '')
+                        if folder:
+                            album = folder
 
+                location = None
                 if self.location:
                     location_coords = geolocation.coordinates_by_name(self.location)
                     if location_coords and 'latitude' in location_coords and 'longitude' in location_coords:
-                        media.set_location(
-                            location_coords['latitude'],
-                            location_coords['longitude']
-                        )
+                        location = (location_coords['latitude'], location_coords['longitude'])
 
+                dt = None
                 if self.time:
                     dt = _parse_time_string(self.time)
-                    media.set_date_taken(dt)
+
+                media.set_metadata_exif(location=location, time=dt, album=album)
 
                 dest_path = FILESYSTEM.process_file(
                     filepath, self.destination, media,
@@ -214,26 +219,21 @@ class UpdateWorker(QThread):
                     continue
 
                 updated = False
+                location = None
                 if self.location:
                     location_coords = geolocation.coordinates_by_name(self.location)
-                    if location_coords and 'latitude' in location_coords:
-                        media.set_location(
-                            location_coords['latitude'],
-                            location_coords['longitude']
-                        )
-                        updated = True
+                    if location_coords and 'latitude' in location_coords and 'longitude' in location_coords:
+                        location = (location_coords['latitude'], location_coords['longitude'])
 
+                dt = None
                 if self.time:
                     dt = _parse_time_string(self.time)
-                    media.set_date_taken(dt)
-                    updated = True
 
-                if self.album:
-                    media.set_album(self.album)
-                    updated = True
-
-                if self.title:
-                    media.set_title(self.title)
+                if location or self.time or self.album or self.title:
+                    media.set_metadata_exif(
+                        location=location, time=dt,
+                        album=self.album, title=self.title
+                    )
                     updated = True
 
                 if updated:

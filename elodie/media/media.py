@@ -333,6 +333,50 @@ class Media(Base):
 
         return status
 
+    def set_metadata_exif(self, location=None, time=None, album=None, title=None):
+        """Write all provided metadata EXIF tags in a single exiftool pass.
+
+        Merges location, date-taken, album and title writes into one
+        exiftool invocation followed by a single cache reset. Where only
+        one of the arguments is provided the behaviour matches the
+        corresponding ``set_*`` method.
+
+        :param tuple location: (latitude, longitude) or None.
+        :param datetime time: Datetime of when the file was taken or None.
+        :param str album: Album name or None.
+        :param str title: Title or None.
+        :returns: bool
+        """
+        tags = {}
+
+        if album is not None:
+            tags[self.album_keys[0]] = album
+
+        if title is not None:
+            tags[self.title_key] = title
+
+        if time is not None:
+            formatted_time = time.strftime('%Y:%m:%d %H:%M:%S')
+            for key in self.exif_map['date_taken']:
+                tags[key] = formatted_time
+
+        if location is not None:
+            latitude, longitude = location
+            tags[self.latitude_keys[0]] = latitude
+            tags[self.longitude_keys[0]] = longitude
+            if self.set_gps_ref:
+                if latitude < 0:
+                    tags[self.latitude_ref_key] = 'S'
+                if longitude < 0:
+                    tags[self.longitude_ref_key] = 'W'
+
+        if not tags:
+            return False
+
+        status = self.__set_tags(tags)
+        self.reset_cache()
+        return status
+
     def __set_tags(self, tags):
         if(not self.is_valid()):
             return None

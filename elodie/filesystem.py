@@ -692,10 +692,12 @@ class FileSystem(object):
                 print(f"[DRY-RUN] Would set utime for: {_file}")
                 print(f"[DRY-RUN] Would set utime from metadata for: {dest_path}")
 
-        db = Db()
+        # Move never hashes, so there is no new entry to record. Only the
+        # copy path maintains a hash db, and only when a checksum was computed.
         if checksum is not None:
+            db = Db()
             db.add_hash(checksum, dest_path)
-        db.update_hash_db()
+            db.update_hash_db()
 
         # Run `after()` for every loaded plugin and if any of them raise an exception
         #  then we skip importing the file and log a message.
