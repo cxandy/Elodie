@@ -163,8 +163,8 @@ class DuplicatePage(QWidget):
             group_item = self.tree.topLevelItem(i)
             for j in range(group_item.childCount()):
                 child = group_item.child(j)
-                # PySide6: checkState returns int 2 for Checked (not enum)
-                if child.checkState(0) == 2:
+                # PySide6: checkState returns CheckState enum; compare with enum
+                if child.checkState(0) == Qt.CheckState.Checked:
                     raw_path = child.text(1)
                     # Normalize path: fix slashes and convert to absolute
                     clean_path = os.path.abspath(os.path.normpath(raw_path))
