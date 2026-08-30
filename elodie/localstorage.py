@@ -14,6 +14,7 @@ from shutil import copyfile
 from time import strftime
 
 from elodie import constants
+from elodie import log
 
 
 class Db(object):
@@ -36,11 +37,15 @@ class Db(object):
 
         # We know from above that this file exists so we open it
         #   for reading only.
-        with open(constants.hash_db(), 'r') as f:
-            try:
+        try:
+            with open(constants.hash_db(), 'r') as f:
                 self.hash_db = json.load(f)
-            except ValueError:
-                pass
+        except (ValueError, TypeError):
+            # An empty file is just a freshly-created db; only a corrupt
+            # non-empty file gets backed up before we start fresh.
+            if os.path.getsize(constants.hash_db()) > 0:
+                self._backup_corrupt(constants.hash_db())
+            self.hash_db = {}
 
         # If the location db doesn't exist we create it.
         # Otherwise we only open for reading
@@ -52,11 +57,39 @@ class Db(object):
 
         # We know from above that this file exists so we open it
         #   for reading only.
-        with open(constants.location_db(), 'r') as f:
-            try:
+        try:
+            with open(constants.location_db(), 'r') as f:
                 self.location_db = json.load(f)
-            except ValueError:
-                pass
+        except (ValueError, TypeError):
+            if os.path.getsize(constants.location_db()) > 0:
+                self._backup_corrupt(constants.location_db())
+            self.location_db = []
+
+    def _backup_corrupt(self, db_path):
+        """Move a corrupt db file aside so its contents are not lost.
+
+        Called when a db json fails to parse; the original is renamed to
+        ``<name>.corrupt`` before the next write would otherwise overwrite it.
+        """
+        try:
+            backup = '%s.corrupt' % db_path
+            if os.path.exists(backup):
+                os.remove(backup)
+            os.rename(db_path, backup)
+            log.warn('Corrupt db found; backed up to %s' % backup)
+        except OSError as e:
+            log.warn('Could not back up corrupt db %s: %s' % (db_path, e))
+
+    def _json_write(self, db_path, data):
+        """Atomically write a db json via a temp file + rename.
+
+        Writing in place risks leaving a truncated file if the process is
+        interrupted, which a later read would treat as empty and overwrite.
+        """
+        tmp_path = '%s.tmp' % db_path
+        with open(tmp_path, 'w') as f:
+            json.dump(data, f)
+        os.replace(tmp_path, db_path)
 
     def add_hash(self, key, value, write=False):
         """Add a hash to the hash db.
@@ -199,13 +232,11 @@ class Db(object):
         if constants.dry_run:
             print(f"[DRY-RUN] Would update hash database with {len(self.hash_db)} entries")
             return
-        with open(constants.hash_db(), 'w') as f:
-            json.dump(self.hash_db, f)
+        self._json_write(constants.hash_db(), self.hash_db)
 
     def update_location_db(self):
         """Write the location db to disk."""
         if constants.dry_run:
             print(f"[DRY-RUN] Would update location database with {len(self.location_db)} entries")
             return
-        with open(constants.location_db(), 'w') as f:
-            json.dump(self.location_db, f)
+        self._json_write(constants.location_db(), self.location_db)
