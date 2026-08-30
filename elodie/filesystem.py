@@ -88,6 +88,26 @@ class FileSystem(object):
                 return candidate
             i += 1
 
+    def _sanitize_name(self, value):
+        """Strip characters that are illegal on Windows/Unix from a name.
+
+        Replaces path separators and the reserved Windows characters with a
+        hyphen so that a title/album like ``Trip: 2017/Summer`` cannot create
+        nested directories or fail the copy. Also collapses whitespace like
+        the original naming logic did.
+        """
+        value = self._sanitize_illegal_chars(value)
+        value = re.sub(self.whitespace_regex, '-', value.strip())
+        return value
+
+    def _sanitize_illegal_chars(self, value):
+        """Replace only filesystem-illegal characters, preserving whitespace.
+
+        Used for folder-name components (album, camera_make/model) where
+        embedded spaces are legitimate and must be kept.
+        """
+        return re.sub(r'[<>:"/\\|?*\x00-\x1f]', '-', value).strip()
+
     def create_directory(self, directory_path):
         """Create a directory if it does not already exist.
 
@@ -211,7 +231,7 @@ class FileSystem(object):
                     break
                 elif part in ('album', 'extension', 'title'):
                     if metadata[part]:
-                        this_value = re.sub(self.whitespace_regex, '-', metadata[part].strip())
+                        this_value = self._sanitize_name(metadata[part])
                         break
                 elif part in ('original_name'):
                     # First we check if we have metadata['original_name'].
@@ -235,7 +255,7 @@ class FileSystem(object):
                             this_value = metadata['base_name']
 
                     # Lastly we want to sanitize the name
-                    this_value = re.sub(self.whitespace_regex, '-', this_value.strip())
+                    this_value = self._sanitize_name(this_value)
                 elif part.startswith('"') and part.endswith('"'):
                     this_value = part[1:-1]
                     break
@@ -491,7 +511,7 @@ class FileSystem(object):
             return parsed_folder_name
         elif part in ('album', 'camera_make', 'camera_model'):
             if metadata[part]:
-                return metadata[part]
+                return self._sanitize_illegal_chars(metadata[part])
         elif part.startswith('"') and part.endswith('"'):
             # Fallback string
             return part[1:-1]
