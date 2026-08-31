@@ -112,6 +112,8 @@ class MainWindow(QMainWindow):
 
         layout.addStretch()
 
+        self._add_nav_item("  清理空目录", 6)
+
         version = QLabel("v1.0")
         version.setAlignment(Qt.AlignmentFlag.AlignCenter)
         version.setStyleSheet("font-size: 10px; color: #aaa; padding: 8px;")
@@ -145,6 +147,44 @@ class MainWindow(QMainWindow):
             btn.setChecked(i == 1)
 
     def _switch_page(self, index):
+        if index == 6:
+            self._show_clean_dialog()
+            return
         self.stack.setCurrentIndex(index)
         for i, btn in enumerate(self.nav_buttons):
             btn.setChecked(i == index)
+
+    def _show_clean_dialog(self):
+        import os
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+
+        folder = QFileDialog.getExistingDirectory(self, "选择要清理的文件夹")
+        if not folder:
+            return
+
+        reply = QMessageBox.question(
+            self,
+            "确认清理",
+            f"将扫描并删除以下目录中的所有空文件夹:\n{folder}\n\n是否继续？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        empty_dirs = []
+        for dirpath, dirnames, filenames in os.walk(folder, topdown=False):
+            if not dirnames and not filenames:
+                empty_dirs.append(dirpath)
+
+        for d in empty_dirs:
+            try:
+                os.rmdir(d)
+            except OSError:
+                pass
+
+        QMessageBox.information(
+            self,
+            "清理完成",
+            f"共删除 {len(empty_dirs)} 个空目录",
+        )

@@ -171,10 +171,6 @@ class PreviewPage(QWidget):
         btn_open.clicked.connect(self._open_folder)
         toolbar.addWidget(btn_open)
 
-        btn_clean = QPushButton("清理空目录")
-        btn_clean.clicked.connect(self._clean_empty_dirs)
-        toolbar.addWidget(btn_clean)
-
         toolbar.addStretch()
 
         self._info_label = QLabel()
@@ -187,39 +183,6 @@ class PreviewPage(QWidget):
         folder = QFileDialog.getExistingDirectory(self, "选择文件夹")
         if folder:
             self._load_folder(folder)
-
-    def _clean_empty_dirs(self):
-        folder = QFileDialog.getExistingDirectory(self, "选择要清理的文件夹")
-        if not folder:
-            return
-
-        from PySide6.QtWidgets import QMessageBox
-        reply = QMessageBox.question(
-            self,
-            "确认清理",
-            f"将扫描并删除以下目录中的所有空文件夹:\n{folder}\n\n是否继续？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
-            return
-
-        empty_dirs = []
-        for dirpath, dirnames, filenames in os.walk(folder, topdown=False):
-            if not dirnames and not filenames:
-                empty_dirs.append(dirpath)
-
-        for d in empty_dirs:
-            try:
-                os.rmdir(d)
-            except OSError:
-                pass
-
-        QMessageBox.information(
-            self,
-            "清理完成",
-            f"共删除 {len(empty_dirs)} 个空目录",
-        )
 
     def _load_folder(self, folder):
         from elodie.filesystem import FileSystem
