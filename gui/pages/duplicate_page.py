@@ -83,11 +83,11 @@ class DuplicatePage(QWidget):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        self.btn_select_all = QPushButton("全选可删副本")
+        self.btn_select_all = QPushButton("全选可移动副本")
         self.btn_select_all.clicked.connect(self._select_all)
         btn_row.addWidget(self.btn_select_all)
 
-        self.btn_delete = QPushButton("删除勾选的副本（回收站）")
+        self.btn_delete = QPushButton("移动勾选的副本到 _重复文件")
         self.btn_delete.clicked.connect(self._delete_selected)
         btn_row.addWidget(self.btn_delete)
         layout.addLayout(btn_row)
@@ -180,16 +180,22 @@ class DuplicatePage(QWidget):
             QMessageBox.information(self, "提示", "未勾选任何副本。")
             return
 
-        # --- 安全移动开始 ---
+        # --- 安全移动 ---
+        # 取所有勾选文件的共同基目录，保证子目录结构保持不变
+        try:
+            base_dir = os.path.commonpath(to_delete)
+        except ValueError:
+            # 跨驱动器无法求共同路径，退回第一个文件的目录
+            base_dir = os.path.dirname(to_delete[0])
+
         # 目标目录：原目录名_重复文件
-        base_dir = os.path.dirname(to_delete[0])
         target_dir = os.path.join(base_dir, "_重复文件")
         os.makedirs(target_dir, exist_ok=True)
 
-        # 移动日志路径
+        # 移动日志路径（用于断点续传）
         log_path = os.path.join(target_dir, "move_log.json")
 
-        # 读取已有日志（断点续传）
+        # 读取已有日志，恢复已移动的文件记录
         moved_set = set()
         if os.path.exists(log_path):
             try:
@@ -199,48 +205,35 @@ class DuplicatePage(QWidget):
             except Exception:
                 moved_set = set()
 
-        # 获取相对于基目录的相对路径，用于比较和目标路径构造
-        rel_base = base_dir
-
-        # 过滤掉已移动的文件
+        # 过滤掉已移动的文件，剩下的才是本次要处理的
         remaining = []
         for path in to_delete:
-            try:
-                rel = os.path.relpath(path, base_dir)
-                if rel not in moved_set:
-                    remaining.append(path)
-                else:
-                    moved_set.add(path)  # 确保集合里有这项
-            except ValueError:
-                remaining.append(path)  # 路径异常，依旧参与移动
-
-        deleted = len(moved_set)
+            rel = os.path.relpath(path, base_dir)
+            if rel in moved_set:
+                moved_set.add(path)
+            else:
+                remaining.append((path, rel))
 
         if not remaining:
-            QMessageBox.information(self, "提示", "所有已选文件已 previously 移动过。")
+            QMessageBox.information(self, "提示", "所有已选文件均已在之前移动过，无需重复操作。")
             return
 
         # 确认弹窗
         reply = QMessageBox.question(
             self, "确认移动",
             f"确定将 {len(remaining)} 个重复副本移动到 {os.path.basename(target_dir)} 吗？\n"
-            f"（中途如意外，可用日志恢复，原文件不受影响）",
+            f"（保持子目录结构；中途如意外可用日志恢复）",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-# 移动循环
+        # 移动循环
         failed = []
-        failed_details = []
-        count = 0
-
-        for i, path in enumerate(remaining):
+        for idx, (path, rel) in enumerate(remaining, 1):
             try:
-                # 计算相对路径和目标路径
-                rel = os.path.relpath(path, base_dir)
                 target_path = os.path.join(target_dir, rel)
-                # 关键检查：如果目标已存在，跳过防止覆盖重要文件
+                # 目标已存在时跳过，防止覆盖重要文件
                 if os.path.exists(target_path):
                     failed.append((path, "目标已存在，已跳过"))
                     continue
@@ -249,35 +242,38 @@ class DuplicatePage(QWidget):
                 # 执行移动
                 shutil.move(path, target_path)
                 moved_set.add(path)
-                count += 1
 
-                # 每 50 个文件刷新日志，防止丢失
-                if (i + 1) % 50 == 0:
+                # 每 50 个文件刷新日志，避免中途意外丢失进度
+                if len(moved_set) % 50 == 0:
                     self._flush_log(log_path, moved_set)
-
-                # 更新进度显示
-                self.status_label.setVisible(True)
-                self.status_label.setText(f"已移动 {len(moved_set) + len(failed)} / {len(to_delete)}")
-
             except Exception as e:
                 failed.append((path, str(e)[:60]))
+
+            self.status_label.setVisible(True)
+            self.status_label.setText(f"正在移动 {idx} / {len(to_delete)}")
 
         # 最后一次刷新日志
         self._flush_log(log_path, moved_set)
 
-        # 更新进度显示
+        # 统计并显示结果
+        moved_count = len(remaining) - len(failed)
         self.status_label.setVisible(True)
         if failed:
-            detail_text = "；".join(failed_details[:2])
-            self.status_label.setText(
-                f"已移动 {len(moved_set)} / {len(to_delete)}，失败：{detail_text}" + 
-                (f"，共{len(failed)}个" if len(failed) > 2 else "")
+            detail_text = "；".join(reason for _, reason in failed[:2])
+            self.status_label.setText(f"已移动 {moved_count} / {len(remaining)}，失败 {len(failed)} 个")
+            QMessageBox.warning(
+                self, "移动完成（部分失败）",
+                f"成功移动 {moved_count} 个，失败 {len(failed)} 个。\n"
+                f"失败原因：{detail_text}\n"
+                f"失败的文件将保留在原位置，可处理后重试。",
             )
         else:
-            self.status_label.setText(f"已移动 {len(moved_set)} / {len(to_delete)}")
+            self.status_label.setText(f"已移动 {moved_count} / {len(remaining)}")
 
-        # 移除树中的条目
-        self._remove_deleted_from_tree(to_delete)
+        # 移除树中已成功移动的条目（失败的保留以便用户处理）
+        failed_paths = {path for path, _ in failed}
+        moved_paths = [path for path, _ in remaining if path not in failed_paths]
+        self._remove_deleted_from_tree(moved_paths)
 
         return
 
