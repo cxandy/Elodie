@@ -188,8 +188,13 @@ class DuplicatePage(QWidget):
             # 跨驱动器无法求共同路径，退回第一个文件的目录
             base_dir = os.path.dirname(to_delete[0])
 
-        # 目标目录：原目录名_重复文件
-        target_dir = os.path.join(base_dir, "_重复文件")
+        # 目标目录：放到文件所在盘符的根目录下，方便查找
+        drive = os.path.splitdrive(base_dir)[0]
+        if drive:
+            target_dir = os.path.join(drive + os.sep, "_重复文件")
+        else:
+            # 无盘符（网络路径等）时退回原位置
+            target_dir = os.path.join(base_dir, "_重复文件")
         os.makedirs(target_dir, exist_ok=True)
 
         # 移动日志路径（用于断点续传）
