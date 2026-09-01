@@ -87,7 +87,7 @@ class DuplicatePage(QWidget):
         self.btn_select_all.clicked.connect(self._select_all)
         btn_row.addWidget(self.btn_select_all)
 
-        self.btn_delete = QPushButton("移动勾选的副本到 _重复文件")
+        self.btn_delete = QPushButton("移动勾选的副本到 重复照片")
         self.btn_delete.clicked.connect(self._delete_selected)
         btn_row.addWidget(self.btn_delete)
         layout.addLayout(btn_row)
@@ -191,10 +191,10 @@ class DuplicatePage(QWidget):
         # 目标目录：放到文件所在盘符的根目录下，方便查找
         drive = os.path.splitdrive(base_dir)[0]
         if drive:
-            target_dir = os.path.join(drive + os.sep, "_重复文件")
+            target_dir = os.path.join(drive + os.sep, "重复照片")
         else:
             # 无盘符（网络路径等）时退回原位置
-            target_dir = os.path.join(base_dir, "_重复文件")
+            target_dir = os.path.join(base_dir, "重复照片")
         os.makedirs(target_dir, exist_ok=True)
 
         # 移动日志路径（用于断点续传）
@@ -213,7 +213,11 @@ class DuplicatePage(QWidget):
         # 过滤掉已移动的文件，剩下的才是本次要处理的
         remaining = []
         for path in to_delete:
-            rel = os.path.relpath(path, base_dir)
+            # 子目录保留原文件的全路径（相对盘符根目录）
+            if drive:
+                rel = os.path.relpath(path, drive + os.sep)
+            else:
+                rel = os.path.relpath(path, base_dir)
             if rel in moved_set:
                 moved_set.add(path)
             else:
