@@ -62,6 +62,11 @@ class DuplicatePage(QWidget):
         self.btn_scan = QPushButton("开始扫描")
         self.btn_scan.clicked.connect(self._scan)
         scan_row.addWidget(self.btn_scan)
+
+        self.btn_cancel = QPushButton("取消扫描")
+        self.btn_cancel.clicked.connect(self._cancel_scan)
+        self.btn_cancel.setVisible(False)
+        scan_row.addWidget(self.btn_cancel)
         scan_group.setLayout(scan_row)
         layout.addWidget(scan_group)
 
@@ -108,6 +113,8 @@ class DuplicatePage(QWidget):
         self.groups = []
         self._last_stats = None
         self.btn_scan.setEnabled(False)
+        self.btn_cancel.setVisible(True)
+        self.btn_cancel.setEnabled(True)
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
         self.status_label.setVisible(True)
@@ -120,6 +127,13 @@ class DuplicatePage(QWidget):
         self.worker.finished.connect(self._on_finished)
         self.worker.start()
 
+    def _cancel_scan(self):
+        if self.worker is not None and self.worker.isRunning():
+            self.btn_cancel.setEnabled(False)
+            self.btn_cancel.setText("正在取消...")
+            self.status_label.setText("正在取消扫描，请稍候...")
+            self.worker.cancel()
+
     def _on_stats(self, total, groups, removable):
         self._last_stats = (total, groups, removable)
 
@@ -130,11 +144,21 @@ class DuplicatePage(QWidget):
 
     def _on_finished(self, groups):
         self.btn_scan.setEnabled(True)
+        self.btn_cancel.setVisible(False)
         self.progress_bar.setVisible(False)
         self.status_label.setVisible(False)
         self.groups = groups
 
+        # A cancelled scan produced partial (possibly empty) results; do not
+        # re-enable the tree or claim a normal "scan complete".
+        was_cancelled = self.worker is not None and self.worker.is_cancelled()
+
         total, group_count, removable = self._last_stats or (0, len(groups), 0)
+
+        if was_cancelled:
+            self.status_label.setVisible(True)
+            self.status_label.setText(f"扫描已取消。已完成 {total} 个文件。")
+            return
 
         if not groups:
             self.status_label.setVisible(True)
