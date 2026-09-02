@@ -57,6 +57,8 @@ class DuplicateWorker(BaseWorker):
                 key = (size, root) if self.same_dir_only else size
                 size_key_to_paths.setdefault(key, []).append(path)
                 total += 1
+                if total % 200 == 0:
+                    self.status.emit(f"正在扫描文件... {total} 个")
 
         # Candidates: buckets that contain more than one file.
         candidates = [p for paths in size_key_to_paths.values()
