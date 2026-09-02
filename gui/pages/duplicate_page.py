@@ -352,30 +352,31 @@ class DuplicatePage(QWidget):
         # 最后一次刷新日志
         self._flush_log(log_path, moved_set)
 
-        # 统计并显示结果（含勾选数量）
+        # 移除树中已成功移动的条目（失败的保留以便用户处理）
+        failed_paths = {path for path, _ in failed}
+        moved_paths = [path for path, _ in remaining if path not in failed_paths]
+        self._remove_deleted_from_tree(moved_paths)
+
+        # 统计并显示结果（勾选数取自移除后的实际勾选框状态，确保与列表一致）
         moved_count = len(remaining) - len(failed)
-        checked_count = len(to_delete)
+        checked_count = self._checked_count()
         self.status_label.setVisible(True)
         if failed:
             detail_text = "；".join(reason for _, reason in failed[:2])
             self.status_label.setText(
-                f"勾选 {checked_count} 个，已移动 {moved_count} / {len(remaining)}，失败 {len(failed)} 个"
+                f"已移动 {moved_count} / {len(remaining)}，失败 {len(failed)} 个，"
+                f"列表剩余勾选 {checked_count} 个"
             )
             QMessageBox.warning(
                 self, "移动完成（部分失败）",
-                f"勾选 {checked_count} 个，成功移动 {moved_count} 个，失败 {len(failed)} 个。\n"
+                f"成功移动 {moved_count} 个，失败 {len(failed)} 个。\n"
                 f"失败原因：{detail_text}\n"
                 f"失败的文件将保留在原位置，可处理后重试。",
             )
         else:
             self.status_label.setText(
-                f"勾选 {checked_count} 个，已移动 {moved_count} / {len(remaining)}"
+                f"已移动 {moved_count} / {len(remaining)}，列表剩余勾选 {checked_count} 个"
             )
-
-        # 移除树中已成功移动的条目（失败的保留以便用户处理）
-        failed_paths = {path for path, _ in failed}
-        moved_paths = [path for path, _ in remaining if path not in failed_paths]
-        self._remove_deleted_from_tree(moved_paths)
 
         return
 
@@ -388,12 +389,13 @@ class DuplicatePage(QWidget):
             pass  # 日志写入失败不中断主流程
 
     def _remove_deleted_from_tree(self, paths_to_remove):
-        removed_set = set(paths_to_remove)
+        removed_set = {os.path.abspath(os.path.normpath(p)) for p in paths_to_remove}
         for i in range(self.tree.topLevelItemCount() - 1, -1, -1):
             group_item = self.tree.topLevelItem(i)
             for j in range(group_item.childCount() - 1, -1, -1):
                 child = group_item.child(j)
-                if child.text(1) in removed_set:
+                child_path = os.path.abspath(os.path.normpath(child.text(1)))
+                if child_path in removed_set:
                     group_item.removeChild(child)
             if group_item.childCount() <= 1:
                 self.tree.takeTopLevelItem(i)
