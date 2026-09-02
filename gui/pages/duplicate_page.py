@@ -2,6 +2,7 @@
 import json
 import os
 import shutil
+import subprocess
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -12,6 +13,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QProgressBar,
     QPushButton,
@@ -81,10 +83,15 @@ class DuplicatePage(QWidget):
         self.chk_same_dir = QCheckBox("只查找同目录重复文件")
         layout.addWidget(self.chk_same_dir)
 
+        self.chk_all_files = QCheckBox("扫描所有文件（不限照片/视频）")
+        layout.addWidget(self.chk_all_files)
+
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["保留", "文件路径"])
         self.tree.setRootIsDecorated(True)
         self.tree.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
+        self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._show_context_menu)
         layout.addWidget(self.tree, 1)
 
         btn_row = QHBoxLayout()
@@ -120,7 +127,11 @@ class DuplicatePage(QWidget):
         self.status_label.setVisible(True)
         self.status_label.setText("正在收集文件...")
 
-        self.worker = DuplicateWorker(directory, same_dir_only=self.chk_same_dir.isChecked())
+        self.worker = DuplicateWorker(
+            directory,
+            same_dir_only=self.chk_same_dir.isChecked(),
+            all_files=self.chk_all_files.isChecked(),
+        )
         self.worker.progress.connect(self._on_progress)
         self.worker.status.connect(self.status_label.setText)
         self.worker.stats.connect(self._on_stats)
@@ -194,6 +205,34 @@ class DuplicatePage(QWidget):
                 group_item.addChild(file_item)
             self.tree.addTopLevelItem(group_item)
             group_item.setExpanded(True)
+
+    def _show_context_menu(self, pos):
+        item = self.tree.itemAt(pos)
+        if item is None:
+            return
+        path = item.text(1).strip()
+        if not path:
+            return  # group header, no file path
+
+        menu = QMenu(self)
+        open_action = menu.addAction("打开所在文件夹")
+        action = menu.exec(self.tree.viewport().mapToGlobal(pos))
+        if action == open_action:
+            self._open_in_folder(path)
+
+    @staticmethod
+    def _open_in_folder(path):
+        directory = os.path.dirname(path)
+        if not os.path.isdir(directory):
+            return
+        try:
+            # Explorer with the file selected; fall back to opening the folder.
+            subprocess.run(
+                ["explorer", f"/select,{os.path.normpath(path)}"],
+                check=False,
+            )
+        except OSError:
+            pass
 
     def _select_all(self):
         for i in range(self.tree.topLevelItemCount()):

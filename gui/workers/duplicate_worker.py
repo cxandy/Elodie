@@ -21,6 +21,9 @@ class DuplicateWorker(BaseWorker):
     If ``same_dir_only`` is True, only groups where all files reside in the
     same directory are kept; duplicates across different directories are
     discarded.
+
+    If ``all_files`` is True, every file (any extension) is scanned instead
+    of only photos and videos.
     """
 
     progress = Signal(int, int)  # scanned, total candidates
@@ -28,10 +31,11 @@ class DuplicateWorker(BaseWorker):
     stats = Signal(int, int, int)  # total files, duplicate groups, removable copies
     finished = Signal(list)  # list of [hash, [path, ...]], each >= 2 members
 
-    def __init__(self, directory, same_dir_only=False):
+    def __init__(self, directory, same_dir_only=False, all_files=False):
         super().__init__()
         self.directory = directory
         self.same_dir_only = same_dir_only
+        self.all_files = all_files
 
     def run(self):
         extensions = set(Photo.extensions) | set(Video.extensions)
@@ -48,7 +52,7 @@ class DuplicateWorker(BaseWorker):
                 if self._cancelled:
                     self.finished.emit([])
                     return
-                if os.path.splitext(name)[1][1:].lower() not in extensions:
+                if not self._accept(name, extensions):
                     continue
                 path = os.path.join(root, name)
                 try:
@@ -91,7 +95,7 @@ class DuplicateWorker(BaseWorker):
         self.finished.emit(groups)
 
     @classmethod
-    def scan(cls, directory, same_dir_only=False):
+    def scan(cls, directory, same_dir_only=False, all_files=False):
         """Scans ``directory`` and returns duplicate groups synchronously.
 
         Each group is ``[hash, [path, ...]]`` with at least two members.
@@ -101,12 +105,15 @@ class DuplicateWorker(BaseWorker):
         When ``same_dir_only`` is True, only groups where all files are in
         the same directory are reported; cross-directory duplicates are
         skipped entirely, saving hash computation.
+
+        When ``all_files`` is True, every file (any extension) is scanned
+        instead of only photos and videos.
         """
         extensions = set(Photo.extensions) | set(Video.extensions)
         size_key_to_paths = {}
         for root, _dirs, files in os.walk(directory):
             for name in files:
-                if os.path.splitext(name)[1][1:].lower() not in extensions:
+                if not cls._accept(name, extensions, all_files):
                     continue
                 path = os.path.join(root, name)
                 try:
@@ -129,6 +136,17 @@ class DuplicateWorker(BaseWorker):
                     hash_to_paths.setdefault(digest, []).append(path)
 
         return cls._groups_from(hash_to_paths)
+
+    @staticmethod
+    def _accept(name, extensions, all_files=False):
+        """Return True if a file name should be included in the scan.
+
+        When ``all_files`` is True every file is accepted; otherwise only
+        names whose lowercase extension is in ``extensions``.
+        """
+        if all_files:
+            return True
+        return os.path.splitext(name)[1][1:].lower() in extensions
 
     @staticmethod
     def _sha256(path, blocksize=65536):
