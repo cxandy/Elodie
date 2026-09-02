@@ -25,6 +25,7 @@ class DuplicateWorker(BaseWorker):
 
     progress = Signal(int, int)  # scanned, total candidates
     status = Signal(str)
+    stats = Signal(int, int, int)  # total files, duplicate groups, removable copies
     finished = Signal(list)  # list of [hash, [path, ...]], each >= 2 members
 
     def __init__(self, directory, same_dir_only=False):
@@ -84,7 +85,10 @@ class DuplicateWorker(BaseWorker):
                 scanned += 1
                 self.progress.emit(scanned, len(candidates))
 
-        self.finished.emit(self._groups_from(hash_to_paths))
+        groups = self._groups_from(hash_to_paths)
+        removable = sum(len(paths) - 1 for _digest, paths in groups)
+        self.stats.emit(total, len(groups), removable)
+        self.finished.emit(groups)
 
     @classmethod
     def scan(cls, directory, same_dir_only=False):

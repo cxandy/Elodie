@@ -37,6 +37,7 @@ class DuplicatePage(QWidget):
         super().__init__()
         self.worker = None
         self.groups = []  # list of [hash, [paths]]
+        self._last_stats = None  # (total files, groups, removable copies)
         self._setup_ui()
 
     def _setup_ui(self):
@@ -105,6 +106,7 @@ class DuplicatePage(QWidget):
 
         self.tree.clear()
         self.groups = []
+        self._last_stats = None
         self.btn_scan.setEnabled(False)
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
@@ -114,8 +116,12 @@ class DuplicatePage(QWidget):
         self.worker = DuplicateWorker(directory, same_dir_only=self.chk_same_dir.isChecked())
         self.worker.progress.connect(self._on_progress)
         self.worker.status.connect(self.status_label.setText)
+        self.worker.stats.connect(self._on_stats)
         self.worker.finished.connect(self._on_finished)
         self.worker.start()
+
+    def _on_stats(self, total, groups, removable):
+        self._last_stats = (total, groups, removable)
 
     def _on_progress(self, scanned, total):
         self.progress_bar.setMaximum(max(total, 1))
@@ -128,12 +134,22 @@ class DuplicatePage(QWidget):
         self.status_label.setVisible(False)
         self.groups = groups
 
+        total, group_count, removable = self._last_stats or (0, len(groups), 0)
+
         if not groups:
             self.status_label.setVisible(True)
-            self.status_label.setText("未发现重复文件。")
+            self.status_label.setText(
+                f"扫描完成：共 {total} 个文件，未发现重复文件。"
+            )
             return
 
         self._populate(groups)
+        self.status_label.setVisible(True)
+        checked = self._checked_count()
+        self.status_label.setText(
+            f"扫描完成：共 {total} 个文件，发现 {group_count} 组重复，"
+            f"可移动副本 {removable} 个，已勾选 {checked} 个。"
+        )
 
     def _populate(self, groups):
         for digest, paths in groups:
@@ -162,6 +178,15 @@ class DuplicatePage(QWidget):
                 child = group_item.child(j)
                 if j != 0:
                     child.setCheckState(0, Qt.CheckState.Checked)
+
+    def _checked_count(self):
+        count = 0
+        for i in range(self.tree.topLevelItemCount()):
+            group_item = self.tree.topLevelItem(i)
+            for j in range(group_item.childCount()):
+                if group_item.child(j).checkState(0) == Qt.CheckState.Checked:
+                    count += 1
+        return count
 
     def _delete_selected(self):
         to_delete = []
@@ -264,20 +289,25 @@ class DuplicatePage(QWidget):
         # 最后一次刷新日志
         self._flush_log(log_path, moved_set)
 
-        # 统计并显示结果
+        # 统计并显示结果（含勾选数量）
         moved_count = len(remaining) - len(failed)
+        checked_count = len(to_delete)
         self.status_label.setVisible(True)
         if failed:
             detail_text = "；".join(reason for _, reason in failed[:2])
-            self.status_label.setText(f"已移动 {moved_count} / {len(remaining)}，失败 {len(failed)} 个")
+            self.status_label.setText(
+                f"勾选 {checked_count} 个，已移动 {moved_count} / {len(remaining)}，失败 {len(failed)} 个"
+            )
             QMessageBox.warning(
                 self, "移动完成（部分失败）",
-                f"成功移动 {moved_count} 个，失败 {len(failed)} 个。\n"
+                f"勾选 {checked_count} 个，成功移动 {moved_count} 个，失败 {len(failed)} 个。\n"
                 f"失败原因：{detail_text}\n"
                 f"失败的文件将保留在原位置，可处理后重试。",
             )
         else:
-            self.status_label.setText(f"已移动 {moved_count} / {len(remaining)}")
+            self.status_label.setText(
+                f"勾选 {checked_count} 个，已移动 {moved_count} / {len(remaining)}"
+            )
 
         # 移除树中已成功移动的条目（失败的保留以便用户处理）
         failed_paths = {path for path, _ in failed}
