@@ -34,6 +34,7 @@ class DuplicateWorker(BaseWorker):
 
     def run(self):
         extensions = set(Photo.extensions) | set(Video.extensions)
+        self.status.emit("正在扫描文件...")
 
         # Pass 1: collect files with their sizes.
         # When same_dir_only, key by (size, directory) so files in
@@ -60,6 +61,7 @@ class DuplicateWorker(BaseWorker):
         # Candidates: buckets that contain more than one file.
         candidates = [p for paths in size_key_to_paths.values()
                       if len(paths) > 1 for p in paths]
+        self.status.emit(f"找到 {total} 个文件，正在计算哈希...")
 
         # Pass 2: hash only the candidate files that share a key.
         hash_to_paths = {}
