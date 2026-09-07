@@ -1,3 +1,4 @@
+> **这是一个修改过的派生版（GUI fork）**，基于 **jmathai/elodie** 原始代码改造，Apache License 2.0。改动说明见 [NOTICE](NOTICE)。
 > **中文用户请阅读 [README_CN.md](README_CN.md)** —— 本仓库为带图形界面（GUI）的 Elodie 照片管理助手，中文文档描述了 GUI 版全部功能（导入 / 更新 / 预览 / 重复扫描 / 配置 / 打包等）。以下为上游原版英文命令行文档。
 
 # Hello, I'm Elodie

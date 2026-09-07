@@ -1,0 +1,32 @@
+Elodie (GUI fork)
+Copyright 2016-2025 jmathai and contributors (jmathai/elodie)
+
+This project is a modified (fork) version of Elodie by jmathai
+(https://github.com/jmathai/elodie), licensed under the Apache
+License, Version 2.0.
+
+Modifications to the original work include, but are not limited to:
+
+  * A graphical user interface (GUI) under the gui/ directory.
+  * Chinese localization files (zh_cn.pm and related data).
+  * Home-based three-tier location folder paths ([Home] config section
+    with full_path / home_country / home_province templates).
+  * A "set home" feature that auto-detects home country/state from a
+    photo's GPS metadata.
+  * Enhanced duplicate scanning (statistics, cancel, scan-all, and
+    open-containing-folder options).
+
+This product includes software developed at GitHub, Inc.
+This product includes the ExifTool library by Phil Harvey.
+
+Licensed under the Apache License, Version 2.0; you may not use
+this file except in compliance with the License. You may obtain a
+copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+implied. See the License for the specific language governing
+permissions and limitations under the License.
