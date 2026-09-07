@@ -1293,6 +1293,100 @@ full_path=%year/%album|%month|%"foo"/%month
     assert path_definition == expected, path_definition
 
 
+@mock.patch('elodie.config.get_config_file', return_value='%s/config.ini-home-path' % gettempdir())
+def test_get_folder_path_definition_home_paths(mock_get_config_file):
+    with open(mock_get_config_file.return_value, 'w', encoding='utf-8') as f:
+        f.write("""
+[Directory]
+country=%country
+state=%state
+city=%city
+date=%Y-%m
+full_path=%country/%date/%state/%city
+full_path_home_country=%country/%state/%date/%city
+full_path_home_province=%country/%state/%city/%date
+
+[Home]
+country=\u4e2d\u56fd
+state=\u56db\u5ddd\u7701
+        """)
+
+    if hasattr(load_config, 'config'):
+        del load_config.config
+    filesystem = FileSystem()
+
+    meta = {
+        'date_taken': time.struct_time((2020, 5, 1, 0, 0, 0, 0, 0, 0)),
+        'latitude': 1.0,
+        'longitude': 1.0,
+    }
+
+    places = {
+        1.0: u'\u7f8e\u56fd',           # other country
+        2.0: u'\u5e7f\u4e1c\u7701',     # home country, other province
+        3.0: u'\u56db\u5ddd\u7701',     # home province
+    }
+    def fake_place_name(lat, lon):
+        if lat == 1.0:
+            return {'country': u'\u7f8e\u56fd', 'state': u'CA',
+                    'city': u'SF', 'default': u'SF'}
+        if lat == 2.0:
+            return {'country': u'\u4e2d\u56fd', 'state': u'\u5e7f\u4e1c\u7701',
+                    'city': u'GZ', 'default': u'GZ'}
+        return {'country': u'\u4e2d\u56fd', 'state': u'\u56db\u5ddd\u7701',
+                'city': u'\u6210\u90fd', 'default': u'\u6210\u90fd'}
+
+    with mock.patch('elodie.filesystem.geolocation.place_name',
+                    side_effect=fake_place_name):
+        meta['latitude'] = 1.0
+        assert filesystem._full_path_key_for(meta) == 'full_path'
+        assert filesystem.get_folder_path(meta) == os.path.join(
+            u'\u7f8e\u56fd', '2020-05', 'CA', 'SF')
+
+        meta['latitude'] = 2.0
+        assert filesystem._full_path_key_for(meta) == 'full_path_home_country'
+        assert filesystem.get_folder_path(meta) == os.path.join(
+            u'\u4e2d\u56fd', u'\u5e7f\u4e1c\u7701', '2020-05', 'GZ')
+
+        meta['latitude'] = 3.0
+        assert filesystem._full_path_key_for(meta) == 'full_path_home_province'
+        assert filesystem.get_folder_path(meta) == os.path.join(
+            u'\u4e2d\u56fd', u'\u56db\u5ddd\u7701', u'\u6210\u90fd', '2020-05')
+
+    if hasattr(load_config, 'config'):
+        del load_config.config
+
+
+@mock.patch('elodie.config.get_config_file', return_value='%s/config.ini-no-home' % gettempdir())
+def test_get_folder_path_no_home_uses_plain_full_path(mock_get_config_file):
+    with open(mock_get_config_file.return_value, 'w', encoding='utf-8') as f:
+        f.write("""
+[Directory]
+country=%country
+date=%Y-%m
+full_path=%country/%date
+        """)
+
+    if hasattr(load_config, 'config'):
+        del load_config.config
+    filesystem = FileSystem()
+    meta = {
+        'date_taken': time.struct_time((2020, 5, 1, 0, 0, 0, 0, 0, 0)),
+        'latitude': 1.0,
+        'longitude': 1.0,
+    }
+    with mock.patch('elodie.filesystem.geolocation.place_name',
+                    return_value={'country': u'\u4e2d\u56fd',
+                                  'state': u'\u56db\u5ddd\u7701',
+                                  'city': u'\u6210\u90fd',
+                                  'default': u'\u6210\u90fd'}):
+        assert filesystem._full_path_key_for(meta) == 'full_path'
+        assert filesystem.get_folder_path(meta) == os.path.join(
+            u'\u4e2d\u56fd', '2020-05')
+    if hasattr(load_config, 'config'):
+        del load_config.config
+
+
 # Dry-run tests
 @mock.patch('elodie.constants.dry_run', True)
 @mock.patch('builtins.print')

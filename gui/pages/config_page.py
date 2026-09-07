@@ -75,7 +75,13 @@ country=%country
 state=%state
 city=%city
 date=%Y-%m
-full_path=%country/%state/%city/%date
+full_path=%country/%date/%state/%city
+full_path_home_country=%country/%state/%date/%city
+full_path_home_province=%country/%state/%city/%date
+
+[Home]
+country=中国
+state=四川省
 
 [File]
 time=%Y-%m-%d_%H.%M.%S
@@ -137,6 +143,24 @@ HELP_TEXT = """\
   location=%city, %state
   full_path=%year/%month/%location
   # 结果: 2024/01/北京, 中国
+
+━━━ 家乡分档（按地点分类）━━━
+
+配置 [Home] 后，可按文件相对家乡的国家/省份自动选用不同的目录结构：
+
+  [Home]
+  country=中国     # 家乡所在国家
+  state=四川省     # 家乡所在省份
+
+三个目录模板（[Directory] 中定义）:
+  full_path                 其他国家
+                            %country/%date/%state/%city
+  full_path_home_country   祖国其他省（同国家、不同省）
+                            %country/%state/%date/%city
+  full_path_home_province  与家乡同省
+                            %country/%state/%city/%date
+
+未配置 [Home] 时只使用 full_path（向后兼容）。
 
 ━━━ [File] 文件命名配置 ━━━
 

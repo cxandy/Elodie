@@ -41,7 +41,7 @@ class FileSystem(object):
             'full_path': '%country/%city/%year/%month',
         }
         self.cached_file_name_definition = None
-        self.cached_folder_path_definition = None
+        self.cached_folder_path_definition = {}
         # Python3 treats the regex \s differently than Python2.
         # It captures some additional characters like the unicode checkmark \u2713.
         # See build failures in Python3 here.
@@ -346,8 +346,8 @@ class FileSystem(object):
         self.cached_file_name_definition = (config_file['name'], self.cached_file_name_definition)
         return self.cached_file_name_definition
 
-    def get_folder_path_definition(self):
-        """Returns a list of folder definitions.
+    def get_folder_path_definition(self, path_key='full_path'):
+        """Returns a list of folder definitions for a given ``full_path``.
 
         Each element in the list represents a folder.
         Fallback folders are supported and are nested lists.
@@ -361,12 +361,21 @@ class FileSystem(object):
             ]
         ]
 
+        ``path_key`` selects which ``[Directory]`` template to parse. The
+        default ``full_path`` is always available; ``full_path_home_country``
+        and ``full_path_home_province`` are used when a ``[Home]`` section is
+        configured so files can be grouped differently for the home
+        country/province. Results are cached per ``path_key``.
+
         :returns: list
         """
         # If we've done this already then return it immediately without
-        # incurring any extra work
+        # incurring any extra work.
         if self.cached_folder_path_definition is not None:
-            return self.cached_folder_path_definition
+            if path_key in self.cached_folder_path_definition:
+                return self.cached_folder_path_definition[path_key]
+        else:
+            self.cached_folder_path_definition = {}
 
         config = load_config()
 
@@ -376,22 +385,27 @@ class FileSystem(object):
         if('Directory' in config):
             config_directory = config['Directory']
 
+        if path_key not in config_directory:
+            # Fall back to the plain full_path (and ultimately the default)
+            # when the requested home template is not configured.
+            path_key = 'full_path'
+
         # Find all subpatterns of full_path that map to directories.
         #  I.e. %foo/%bar => ['foo', 'bar']
         #  I.e. %foo/%bar|%example|"something" => ['foo', 'bar|example|"something"']
         path_parts = re.findall(
                          '(\%[^/]+)',
-                         config_directory['full_path']
+                         config_directory[path_key]
                      )
 
         if not path_parts or len(path_parts) == 0:
             return self.default_folder_path_definition
 
-        self.cached_folder_path_definition = []
+        definition = []
         for part in path_parts:
             part = part.replace('%', '')
             if part in config_directory:
-                self.cached_folder_path_definition.append(
+                definition.append(
                     [(part, config_directory[part])]
                 )
             else:
@@ -400,18 +414,55 @@ class FileSystem(object):
                     this_part.append(
                         (p, config_directory[p] if p in config_directory else '')
                     )
-                self.cached_folder_path_definition.append(this_part)
+                definition.append(this_part)
 
-        return self.cached_folder_path_definition
+        self.cached_folder_path_definition[path_key] = definition
+        return definition
 
-    def get_folder_path(self, metadata, path_parts=None):
+    def _full_path_key_for(self, metadata):
+        """Return the ``[Directory]`` template key for a file's location.
+
+        Decides between the three location templates based on where the file
+        sits relative to the configured ``[Home]`` country/state:
+
+        * home not configured            -> ``full_path``
+        * country differs from home      -> ``full_path``
+        * home country, other province   -> ``full_path_home_country``
+        * home province                  -> ``full_path_home_province``
+
+        :param dict metadata: Metadata dictionary (needs latitude/longitude).
+        :returns: str
+        """
+        config = load_config()
+        if 'Home' not in config:
+            return 'full_path'
+
+        home_country = config['Home'].get('country', '')
+        home_state = config['Home'].get('state', '')
+
+        place_name = geolocation.place_name(
+            metadata.get('latitude'),
+            metadata.get('longitude'),
+        )
+        country = (place_name.get('country') or '').strip()
+        state = (place_name.get('state') or '').strip()
+
+        if not home_country or country != home_country:
+            return 'full_path'
+        if not home_state or state == home_state:
+            return 'full_path_home_province'
+        return 'full_path_home_country'
+
+    def get_folder_path(self, metadata, path_parts=None, path_key=None):
         """Given a media's metadata this function returns the folder path as a string.
 
         :param dict metadata: Metadata dictionary.
         :returns: str
         """
         if path_parts is None:
-            path_parts = self.get_folder_path_definition()
+            if path_key is None:
+                path_key = self._full_path_key_for(metadata)
+            path_parts = self.get_folder_path_definition(path_key)
         path = []
         for path_part in path_parts:
             # We support fallback values so that

@@ -1,3 +1,13 @@
 [MapQuest]
 key=your-api-key-goes-here
 prefer_english_names=False
+
+# Optional: when set, files are grouped by location relative to home.
+# Full templates live under [Directory]:
+#   full_path                  other countries     %country/%date/%state/%city
+#   full_path_home_country     home country, other province  %country/%state/%date/%city
+#   full_path_home_province    home province       %country/%state/%city/%date
+#
+# [Home]
+# country=中国
+# state=四川省

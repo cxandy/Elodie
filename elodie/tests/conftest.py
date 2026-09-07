@@ -59,7 +59,7 @@ def setup_test_environment():
     )
     
     # Read the sample config file and store contents to be replaced
-    with open(temporary_config_file_sample, 'r') as f:
+    with open(temporary_config_file_sample, 'r', encoding='utf-8-sig') as f:
         config_contents = f.read()
     
     # Set the mapquest key in the temporary config file and write it to the temporary application directory
@@ -70,7 +70,7 @@ def setup_test_environment():
         # If not set, tests that require it will fail with a clear message
         config_contents = config_contents.replace('your-api-key-goes-here', 'test-key-not-set')
     
-    with open(temporary_config_file, 'w+') as f:
+    with open(temporary_config_file, 'w+', encoding='utf-8') as f:
         f.write(config_contents)
     
     # Yield control to tests
