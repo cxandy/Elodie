@@ -1,6 +1,7 @@
 """Duplicate page - scan a directory and manage duplicate files."""
 import json
 import os
+import re
 import shutil
 import subprocess
 
@@ -190,6 +191,7 @@ class DuplicatePage(QWidget):
         for digest, paths in groups:
             group_item = QTreeWidgetItem([f"{len(paths)} 个重复", ""])
             group_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            check_states = self._check_states(paths)
             for i, path in enumerate(paths):
                 file_item = QTreeWidgetItem([str(len(paths) - i - 1), path])
                 file_item.setFlags(
@@ -197,14 +199,44 @@ class DuplicatePage(QWidget):
                     | Qt.ItemFlag.ItemIsSelectable
                     | Qt.ItemFlag.ItemIsUserCheckable
                 )
-                # Suggest keeping the first; pre-check the rest as removable
-                # candidates. Lowest-numbered copies are the ones to delete.
                 file_item.setCheckState(
-                    0, Qt.CheckState.Unchecked if i == 0 else Qt.CheckState.Checked
+                    0,
+                    Qt.CheckState.Checked if check_states[i] else Qt.CheckState.Unchecked,
                 )
                 group_item.addChild(file_item)
             self.tree.addTopLevelItem(group_item)
             group_item.setExpanded(True)
+
+    @staticmethod
+    def _is_copy_suffix(path):
+        """Return True if the file name looks like a system copy, e.g. ``x (1).jpg``."""
+        stem = os.path.basename(path)
+        stem = os.path.splitext(stem)[0]
+        return bool(re.search(r' \(\d+\)$', stem))
+
+    @staticmethod
+    def _check_states(paths):
+        """Decide which files in a duplicate group to pre-check as removable.
+
+        Files whose names carry a "(n)" suffix (e.g. ``photo (1).jpg``) are
+        treated as obvious copies and pre-checked first. Among files without
+        that suffix, the first is kept unchecked (retained) and any others are
+        pre-checked, so the original is never deleted.
+        """
+        states = [False] * len(paths)
+        copied = [i for i, p in enumerate(paths) if DuplicatePage._is_copy_suffix(p)]
+        others = [i for i in range(len(paths)) if i not in set(copied)]
+
+        for i in copied:
+            states[i] = True
+        for i in others[1:]:
+            states[i] = True
+
+        # Safety: never check every file in a group, otherwise nothing is
+        # retained. If everything was marked removable, keep the last one.
+        if all(states) and len(states) > 1:
+            states[-1] = False
+        return states
 
     def _show_context_menu(self, pos):
         item = self.tree.itemAt(pos)
@@ -237,10 +269,11 @@ class DuplicatePage(QWidget):
     def _select_all(self):
         for i in range(self.tree.topLevelItemCount()):
             group_item = self.tree.topLevelItem(i)
-            for j in range(group_item.childCount()):
-                child = group_item.child(j)
-                if j != 0:
-                    child.setCheckState(0, Qt.CheckState.Checked)
+            paths = [group_item.child(j).text(1) for j in range(group_item.childCount())]
+            for j, checked in enumerate(DuplicatePage._check_states(paths)):
+                group_item.child(j).setCheckState(
+                    0, Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+                )
 
     def _checked_count(self):
         count = 0
