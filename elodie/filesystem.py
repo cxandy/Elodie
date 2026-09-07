@@ -369,6 +369,17 @@ class FileSystem(object):
 
         :returns: list
         """
+        config = load_config()
+
+        # If the underlying config was rewritten at runtime (the GUI can edit
+        # and invalidate it while this shared FileSystem instance stays alive),
+        # drop the cached folder-path definitions so the new templates are
+        # used. Compare config object identity: `load_config()` caches its
+        # result and only produces a new object after `invalidate_config()`.
+        if getattr(self, '_cached_config_obj', None) is not config:
+            self._cached_config_obj = config
+            self.cached_folder_path_definition = {}
+
         # If we've done this already then return it immediately without
         # incurring any extra work.
         if self.cached_folder_path_definition is not None:
@@ -376,8 +387,6 @@ class FileSystem(object):
                 return self.cached_folder_path_definition[path_key]
         else:
             self.cached_folder_path_definition = {}
-
-        config = load_config()
 
         # If Directory is in the config we assume full_path and its
         #  corresponding values (date, location) are also present
