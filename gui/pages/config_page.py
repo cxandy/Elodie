@@ -2,9 +2,11 @@
 import json
 import os
 
+from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -212,11 +214,71 @@ HELP_TEXT = """\
 """
 
 
+class _HomeDetectWorker(QThread):
+    """Background thread: read GPS from a photo and reverse-geocode it."""
+
+    finished = Signal(str, str, str)  # country, state, city (or '' on error)
+    error = Signal(str)
+
+    def __init__(self, filepath):
+        super().__init__()
+        self.filepath = filepath
+
+    def run(self):
+        from elodie.dependencies import get_exiftool
+        from elodie.external.pyexiftool import ExifTool
+        from elodie import constants, geolocation
+
+        exe = get_exiftool()
+        if not exe:
+            self.error.emit("exiftool 未安装，无法读取照片信息。")
+            return
+
+        try:
+            et = ExifTool(
+                executable_=exe,
+                addedargs=[
+                    u'-config', u'"{}"'.format(constants.exiftool_config),
+                ],
+            )
+            et.start()
+            attrs = et.get_metadata(self.filepath)
+            et.terminate()
+        except Exception as e:
+            self.error.emit(f"读取 GPS 失败: {e}")
+            return
+
+        if not attrs:
+            self.error.emit("照片中未找到 EXIF 元数据。")
+            return
+
+        # Prefer the Composite values: they already include the signed
+        # hemisphere (N/S, E/W) from the reference tags, unlike the raw
+        # EXIF values which are unsigned.
+        lat = attrs.get('Composite:GPSLatitude') or attrs.get('EXIF:GPSLatitude')
+        lon = attrs.get('Composite:GPSLongitude') or attrs.get('EXIF:GPSLongitude')
+        if lat is None or lon is None:
+            self.error.emit("照片中没有 GPS 坐标，请选一张在家乡拍的有定位的照片。")
+            return
+
+        place = geolocation.place_name(float(lat), float(lon))
+        country = (place.get('country') or '').strip()
+        state = (place.get('state') or '').strip()
+        city = (place.get('city') or place.get('default') or '').strip()
+
+        if not country:
+            self.error.emit("无法通过 GPS 坐标识别国家/省份。")
+            return
+
+        self.finished.emit(country, state, city)
+
+
 class ConfigPage(QWidget):
     """Page for managing Elodie configuration."""
 
     def __init__(self):
         super().__init__()
+        self._home_worker = None
         self._setup_ui()
 
     def _setup_ui(self):
@@ -251,6 +313,28 @@ class ConfigPage(QWidget):
 
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
+
+        home_group = QGroupBox("设置家乡")
+        home_layout = QVBoxLayout()
+
+        home_hint = QLabel(
+            "选择一张在家乡拍摄的、带 GPS 信息的照片，程序会自动识别国家/省份并写入 [Home] 配置。"
+        )
+        home_hint.setWordWrap(True)
+        home_layout.addWidget(home_hint)
+
+        home_row = QHBoxLayout()
+        self.btn_set_home = QPushButton("选择照片并设置家乡...")
+        self.btn_set_home.clicked.connect(self._set_home)
+        home_row.addWidget(self.btn_set_home)
+
+        self.home_status = QLabel()
+        self.home_status.setWordWrap(True)
+        home_row.addWidget(self.home_status, 1)
+        home_layout.addLayout(home_row)
+
+        home_group.setLayout(home_layout)
+        layout.addWidget(home_group)
 
         config_group = QGroupBox("配置文件内容")
         config_layout = QVBoxLayout()
@@ -349,6 +433,58 @@ name=%time-%original_name-%title.%extension
         invalidate_config()
 
         QMessageBox.information(self, "成功", "配置已保存")
+
+    def _set_home(self):
+        filepath, _ = QFileDialog.getOpenFileName(
+            self, "选择家乡照片", "",
+            "照片/视频 (*.jpg *.jpeg *.png *.heic *.dng *.nef *.cr2 *.arw *.mov *.mp4)",
+        )
+        if not filepath:
+            return
+
+        self.btn_set_home.setEnabled(False)
+        self.home_status.setText("正在识别照片位置，请稍候...")
+
+        self._home_worker = _HomeDetectWorker(filepath)
+        self._home_worker.finished.connect(self._on_home_detected)
+        self._home_worker.error.connect(self._on_home_error)
+        self._home_worker.start()
+
+    def _on_home_detected(self, country, state, city):
+        self.btn_set_home.setEnabled(True)
+        self.home_status.setText(
+            f"识别到: 国家={country}，省份={state or '未知'}，"
+            f"城市={city or '未知'}"
+        )
+
+        if not os.path.exists(get_config_file()):
+            self._save_config()
+
+        from elodie.config import load_config
+        config = load_config()
+        home = dict(config['Home']) if 'Home' in config else {}
+        home['country'] = country
+        if state:
+            home['state'] = state
+        config['Home'] = home
+
+        with open(get_config_file(), 'w', encoding='utf-8-sig') as f:
+            config.write(f)
+        invalidate_config()
+
+        self._load_config_content()
+        QMessageBox.information(
+            self, "设置家乡",
+            f"已设置家乡: {country}"
+            + (f" {state}" if state else "")
+            + (f" {city}" if city else "") + "。\n"
+            "现在按地点分类时会按家乡分档。",
+        )
+
+    def _on_home_error(self, message):
+        self.btn_set_home.setEnabled(True)
+        self.home_status.setText("设置失败。")
+        QMessageBox.warning(self, "设置家乡失败", message)
 
     def _show_help(self):
         dlg = QDialog(self)
