@@ -280,10 +280,16 @@ def place_name(lat, lon):
         from elodie.cn_locations import translate_location_dict
         translated = translate_location_dict(cached_place_name)
         _LOCATION_CACHE[bucket] = translated
+        # Entry may already be Chinese (idempotent no-op) or an older English
+        # entry; persist the Chinese result so future processes don't have to
+        # re-translate (and never hit the network for the same name again).
+        if translated != cached_place_name:
+            db.add_location(lat, lon, translated)
+            db.update_location_db()
         return dict(translated)
 
     lookup_place_name = {}
-    
+
     # Use MapQuest if key is available, otherwise use ExifTool
     key = get_key()
     if key is not None:
@@ -306,7 +312,14 @@ def place_name(lat, lon):
         if exiftool_result is not None:
             lookup_place_name = exiftool_result
 
+    # Unify: run whatever source produced (MapQuest or ExifTool) through the
+    # Chinese translation layer, so both paths yield the same result and the
+    # Chinese (not English) name is what gets cached to disk. This removes the
+    # old inconsistency where a configured MapQuest key silently disabled the
+    # Chinese translation.
     if lookup_place_name:
+        from elodie.cn_locations import translate_location_dict
+        lookup_place_name = translate_location_dict(lookup_place_name)
         db.add_location(lat, lon, lookup_place_name)
         db.update_location_db()
 

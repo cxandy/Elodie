@@ -157,6 +157,10 @@ def _translate_via_mymemory(text):
     """
     if not text or not isinstance(text, str):
         return None
+    # Skip already-Chinese text and bare labels with no Latin letters, so we
+    # never waste a rate-limited API call on something we can't improve.
+    if _has_cjk(text):
+        return None
     if not any(c.isalpha() for c in text):
         return None
 
@@ -185,14 +189,28 @@ def _translate_via_mymemory(text):
     return None
 
 
+def _has_cjk(text):
+    """Return True if the string contains Chinese (CJK) characters."""
+    return any('\u4e00' <= c <= '\u9fff' for c in text)
+
+
 def translate_location(english_name, region=None, country_code=None):
     """Translate a single English location name to Chinese.
 
     Tries ExifTool GeoLang database first (simple key, then compound key),
     then falls back to built-in province/country mapping.
     Returns the original name if no translation found.
+
+    Idempotent: a name that is already Chinese (or has no Latin letters) is
+    returned unchanged, so re-processing cached Chinese entries never triggers
+    a redundant dictionary lookup or a network call.
     """
     if not english_name or not isinstance(english_name, str):
+        return english_name
+
+    # Already Chinese - nothing to do. Also keeps translation idempotent so
+    # cached Chinese results (see geolocation.place_name) are cheap no-ops.
+    if _has_cjk(english_name):
         return english_name
 
     geo_lang = _load_geolang()
@@ -248,7 +266,9 @@ def translate_location_dict(location_dict):
         elif key == 'default':
             region_for_lookup = state if state else subregion
             result[key] = translate_location(value, region_for_lookup, country_code)
-        elif key in ('state', 'country', 'subregion'):
+        elif key in ('state', 'country', 'subregion', 'town'):
+            # 'town' is used by the MapQuest path; translate it the same way so
+            # both reverse-geocoding sources produce Chinese consistently.
             result[key] = translate_location(value)
         else:
             # Leave non-place-name keys (country_code, timezone, etc.) as-is;
