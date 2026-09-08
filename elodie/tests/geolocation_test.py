@@ -112,16 +112,21 @@ def test_exiftool_is_available():
     assert available == True, "ExifTool geolocation should be available"
 
 def test_exiftool_place_name_sunnyvale():
-    """Test ExifTool place name lookup with known Sunnyvale coordinates."""
+    """Test ExifTool place name lookup with known Sunnyvale coordinates.
+
+    city now resolves to the county/prefecture level (GeolocationSubregion)
+    rather than the town, so Sunnyvale yields "Santa Clara County" (圣克拉拉县).
+    Results are translated to Chinese by translate_location_dict.
+    """
     lat, lon = 37.3688, -122.0365
     result = geolocation.exiftool_place_name(lat, lon)
     
     assert result is not None, "Should find a location for Sunnyvale coordinates"
     assert 'city' in result, "Should include city information"
     assert 'default' in result, "Should include default location"
-    assert result['city'] == 'Sunnyvale', f"City should be Sunnyvale, got {result['city']}"
-    assert result['state'] == 'California', f"State should be California, got {result['state']}"
-    assert result['country'] == 'United States', f"Country should be United States, got {result['country']}"
+    assert result['city'] == u'圣克拉拉县', f"City should be 圣克拉拉县, got {result['city']}"
+    assert result['state'] == u'加利福尼亞', f"State should be 加利福尼亞, got {result['state']}"
+    assert result['country'] == u'美国', f"Country should be 美国, got {result['country']}"
 
 @mock.patch('elodie.geolocation.is_exiftool_available')
 def test_exiftool_place_name_unavailable(mock_available):

@@ -177,30 +177,31 @@ def exiftool_place_name(lat, lon):
         result = et.execute_json(b"-api", f"geolocation={lat},{lon}".encode('utf-8'))
         if result and len(result) > 0:
             data = result[0]
-            location_data = {}
 
-            if 'ExifTool:GeolocationCity' in data and data['ExifTool:GeolocationCity'].strip():
-                location_data['city'] = data['ExifTool:GeolocationCity']
-                if 'default' not in location_data:
-                    location_data['default'] = data['ExifTool:GeolocationCity']
+            region = data.get('ExifTool:GeolocationRegion') or ''
+            state = region.strip()
+            country_code = (data.get('ExifTool:GeolocationCountryCode') or '').strip()
+            subregion = (data.get('ExifTool:GeolocationSubregion') or '').strip()
+            country = (data.get('ExifTool:GeolocationCountry') or '').strip()
 
-            if 'ExifTool:GeolocationRegion' in data and data['ExifTool:GeolocationRegion'].strip():
-                location_data['state'] = data['ExifTool:GeolocationRegion']
-                if 'default' not in location_data:
-                    location_data['default'] = data['ExifTool:GeolocationRegion']
+            # Folder granularity is "county / prefecture-level city" (e.g.
+            # "Hangzhou Shi"), not the sometimes-missing town/city names
+            # (e.g. Andong, Cangqian). Prefer GeolocationSubregion, falling
+            # back to the province (region), then the country.
+            city = subregion or state or country
+            if not city:
+                return None
 
-            if 'ExifTool:GeolocationCountry' in data and data['ExifTool:GeolocationCountry'].strip():
-                location_data['country'] = data['ExifTool:GeolocationCountry']
-                if 'default' not in location_data:
-                    location_data['default'] = data['ExifTool:GeolocationCountry']
-
-            # Pass country_code for compound-key translation lookup
-            if 'ExifTool:GeolocationCountryCode' in data:
-                location_data['country_code'] = data['ExifTool:GeolocationCountryCode']
-
-            # Pass subregion for compound-key translation lookup
-            if 'ExifTool:GeolocationSubregion' in data:
-                location_data['subregion'] = data['ExifTool:GeolocationSubregion']
+            location_data = {'city': city, 'default': city}
+            if state:
+                location_data['state'] = state
+            if country:
+                location_data['country'] = country
+            # Pass country_code and subregion for compound-key translation lookup
+            if country_code:
+                location_data['country_code'] = country_code
+            if subregion:
+                location_data['subregion'] = subregion
 
             if location_data:
                 from elodie.cn_locations import translate_location_dict
