@@ -489,9 +489,12 @@ class FileSystem(object):
                 # When several independent location levels are missing
                 # (e.g. %country/%state/%city all fall back to the
                 # default) each one resolves to "Unknown Location", which
-                # stacks as duplicate folders. Keep at most one.
+                # would stack as duplicate folders separated by a date level
+                # ("2018-07/Unknown Location/Unknown Location"). Keep at
+                # most one, at its earliest occurrence, so a location-less
+                # file lands in "Unknown Location/2018-07".
                 if (this_path == geolocation.__DEFAULT_LOCATION__
-                        and path and path[-1] == geolocation.__DEFAULT_LOCATION__):
+                        and geolocation.__DEFAULT_LOCATION__ in path):
                     continue
                 path.append(this_path)
                 # We break as soon as we have a value to append
@@ -542,19 +545,16 @@ class FileSystem(object):
             # each directory level is independent. Without this, when a level
             # is missing (e.g. no country) it silently falls back to 'default'
             # and produces duplicated folders (Sunnyvale/Sunnyvale).
-            # A missing country is filled with an empty string so its folder
-            # level is skipped entirely (avoiding 'Unknown Location/Unknown
-            # Location'); a missing city/state falls back to 'Unknown
-            # Location' so the folder still lands in a recognizable place.
+            # Missing location levels all collapse to a single
+            # "Unknown Location" folder (kept at the earliest level by
+            # get_folder_path), so a location-less file lands in
+            # "Unknown Location/<date>" regardless of template order.
             for loc_key in re.findall(r'%([a-z]+)', mask):
                 if loc_key not in ('city', 'state', 'country'):
                     continue
                 if loc_key in place_name:
                     continue
-                if loc_key == 'country':
-                    place_name[loc_key] = ''
-                else:
-                    place_name[loc_key] = geolocation.__DEFAULT_LOCATION__
+                place_name[loc_key] = geolocation.__DEFAULT_LOCATION__
 
             location_parts = re.findall('(%[^%]+)', mask)
             parsed_folder_name = self.parse_mask_for_location(

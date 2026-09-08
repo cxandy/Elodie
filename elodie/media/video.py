@@ -93,6 +93,22 @@ class Video(Media):
                         pass
 
         if(seconds_since_epoch == 0):
-            return None
+            # The filesystem returned a zero timestamp (the iPhone "January
+            # 1970 bug": the file was exported with all dates zeroed). Try the
+            # other filesystem timestamps before giving up, so the file can
+            # still be imported instead of crashing on date_taken == None.
+            try:
+                fallback = max(
+                    os.path.getmtime(source),
+                    os.path.getctime(source),
+                    os.path.getatime(source),
+                )
+                if fallback and fallback > 0:
+                    return time.gmtime(fallback)
+            except OSError:
+                pass
+            # No usable timestamp anywhere: fall back to epoch (1970-01-01)
+            # so the file is importable under a known date.
+            return time.gmtime(0)
 
         return time.gmtime(seconds_since_epoch)
