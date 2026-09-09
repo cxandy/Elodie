@@ -314,6 +314,38 @@ class ConfigPage(QWidget):
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
 
+        cache_group = QGroupBox("缓存管理")
+        cache_layout = QVBoxLayout()
+
+        cache_hint = QLabel(
+            "位置缓存保存坐标→地名的映射。修改地名精度或翻译逻辑后，"
+            "旧缓存仍会返回旧结果，可清除后让新导入重新解析地名。"
+        )
+        cache_hint.setWordWrap(True)
+        cache_layout.addWidget(cache_hint)
+
+        self.cache_status = QLabel()
+        self.cache_status.setWordWrap(True)
+        cache_layout.addWidget(self.cache_status)
+        self._update_cache_status()
+
+        cache_row = QHBoxLayout()
+        self.btn_clear_location_cache = QPushButton("清除位置缓存")
+        self.btn_clear_location_cache.clicked.connect(
+            self._clear_location_cache
+        )
+        cache_row.addWidget(self.btn_clear_location_cache)
+
+        self.btn_clear_hash_cache = QPushButton("清除文件去重缓存")
+        self.btn_clear_hash_cache.clicked.connect(self._clear_hash_cache)
+        cache_row.addWidget(self.btn_clear_hash_cache)
+
+        cache_row.addStretch()
+        cache_layout.addLayout(cache_row)
+
+        cache_group.setLayout(cache_layout)
+        layout.addWidget(cache_group)
+
         home_group = QGroupBox("设置家乡")
         home_layout = QVBoxLayout()
 
@@ -485,6 +517,54 @@ name=%time-%original_name-%title.%extension
         self.btn_set_home.setEnabled(True)
         self.home_status.setText("设置失败。")
         QMessageBox.warning(self, "设置家乡失败", message)
+
+    def _update_cache_status(self):
+        """Refresh the cache summary label with current cache file sizes."""
+        parts = []
+        for label, path in (
+            ("位置缓存", constants.location_db()),
+            ("文件去重缓存", constants.hash_db()),
+        ):
+            if os.path.exists(path):
+                try:
+                    size = os.path.getsize(path)
+                    parts.append(f"{label}: {size / 1024:.1f} KB")
+                except OSError:
+                    parts.append(f"{label}: 无法读取")
+            else:
+                parts.append(f"{label}: 无")
+        self.cache_status.setText("  |  ".join(parts))
+
+    def _clear_cache_file(self, path, description):
+        if not os.path.exists(path):
+            QMessageBox.information(self, "清除缓存", f"{description}已为空，无需清除。")
+            return
+
+        reply = QMessageBox.question(
+            self, "确认",
+            f"确定要清除{description}吗？\n\n{path}\n\n"
+            "清除后相关缓存会重新生成，首次导入可能变慢。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            os.remove(path)
+            self._update_cache_status()
+            QMessageBox.information(self, "清除缓存", f"{description}已清除。")
+        except OSError as e:
+            QMessageBox.warning(self, "清除失败", f"无法清除{description}: {e}")
+
+    def _clear_location_cache(self):
+        # Also drop the in-memory bucket cache so a fresh process/import
+        # re-resolves place names instead of reusing stale ones.
+        from elodie.geolocation import clear_caches
+        clear_caches()
+        self._clear_cache_file(constants.location_db(), "位置缓存")
+
+    def _clear_hash_cache(self):
+        self._clear_cache_file(constants.hash_db(), "文件去重缓存")
 
     def _show_help(self):
         dlg = QDialog(self)
