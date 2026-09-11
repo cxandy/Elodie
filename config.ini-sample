@@ -1,5 +1,9 @@
 [MapQuest]
 key=your-api-key-goes-here
+# When True, skip cn_locations translation and use raw names from the
+# geocoding service (MapQuest or ExifTool) directly.
+# When False (default), translate place names to Chinese via the built-in
+# dictionary and fallback layers.
 prefer_english_names=False
 
 # Optional: when set, files are grouped by location relative to home.

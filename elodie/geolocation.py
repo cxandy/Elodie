@@ -204,8 +204,10 @@ def exiftool_place_name(lat, lon):
                 location_data['subregion'] = subregion
 
             if location_data:
-                from elodie.cn_locations import translate_location_dict
-                return translate_location_dict(location_data)
+                if not get_prefer_english_names():
+                    from elodie.cn_locations import translate_location_dict
+                    return translate_location_dict(location_data)
+                return location_data
 
     except Exception as e:
         log.error(f"ExifTool place name lookup failed: {e}")
@@ -278,16 +280,16 @@ def place_name(lat, lon):
     # We check that it's a dict to coerce an upgrade of the location
     #  db from a string location to a dictionary. See gh-160.
     if(isinstance(cached_place_name, dict)):
-        from elodie.cn_locations import translate_location_dict
-        translated = translate_location_dict(cached_place_name)
-        _LOCATION_CACHE[bucket] = translated
-        # Entry may already be Chinese (idempotent no-op) or an older English
-        # entry; persist the Chinese result so future processes don't have to
-        # re-translate (and never hit the network for the same name again).
-        if translated != cached_place_name:
-            db.add_location(lat, lon, translated)
-            db.update_location_db()
-        return dict(translated)
+        if not get_prefer_english_names():
+            from elodie.cn_locations import translate_location_dict
+            translated = translate_location_dict(cached_place_name)
+            _LOCATION_CACHE[bucket] = translated
+            if translated != cached_place_name:
+                db.add_location(lat, lon, translated)
+                db.update_location_db()
+            return dict(translated)
+        _LOCATION_CACHE[bucket] = cached_place_name
+        return dict(cached_place_name)
 
     lookup_place_name = {}
 
@@ -319,8 +321,9 @@ def place_name(lat, lon):
     # old inconsistency where a configured MapQuest key silently disabled the
     # Chinese translation.
     if lookup_place_name:
-        from elodie.cn_locations import translate_location_dict
-        lookup_place_name = translate_location_dict(lookup_place_name)
+        if not get_prefer_english_names():
+            from elodie.cn_locations import translate_location_dict
+            lookup_place_name = translate_location_dict(lookup_place_name)
         db.add_location(lat, lon, lookup_place_name)
         db.update_location_db()
 
