@@ -314,39 +314,19 @@ class ConfigPage(QWidget):
         info_group.setLayout(info_layout)
         layout.addWidget(info_group)
 
-        cache_group = QGroupBox("缓存管理")
-        cache_layout = QVBoxLayout()
-
-        cache_row = QHBoxLayout()
         self.btn_clear_location_cache = QPushButton("清除位置缓存")
         self.btn_clear_location_cache.clicked.connect(
             self._clear_location_cache
         )
-        cache_row.addWidget(self.btn_clear_location_cache)
+        layout.addWidget(self.btn_clear_location_cache)
 
         self.btn_clear_hash_cache = QPushButton("清除文件去重缓存")
         self.btn_clear_hash_cache.clicked.connect(self._clear_hash_cache)
-        cache_row.addWidget(self.btn_clear_hash_cache)
+        layout.addWidget(self.btn_clear_hash_cache)
 
-        cache_row.addStretch()
-        cache_layout.addLayout(cache_row)
-
-        cache_group.setLayout(cache_layout)
-        layout.addWidget(cache_group)
-
-        home_group = QGroupBox("设置家乡")
-        home_layout = QVBoxLayout()
-
-        home_row = QHBoxLayout()
         self.btn_set_home = QPushButton("选择照片并设置家乡...")
         self.btn_set_home.clicked.connect(self._set_home)
-        home_row.addWidget(self.btn_set_home)
-
-        home_row.addStretch()
-        home_layout.addLayout(home_row)
-
-        home_group.setLayout(home_layout)
-        layout.addWidget(home_group)
+        layout.addWidget(self.btn_set_home)
 
         config_group = QGroupBox("配置文件内容")
         config_layout = QVBoxLayout()
