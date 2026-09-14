@@ -317,18 +317,6 @@ class ConfigPage(QWidget):
         cache_group = QGroupBox("缓存管理")
         cache_layout = QVBoxLayout()
 
-        cache_hint = QLabel(
-            "位置缓存保存坐标→地名的映射。修改地名精度或翻译逻辑后，"
-            "旧缓存仍会返回旧结果，可清除后让新导入重新解析地名。"
-        )
-        cache_hint.setWordWrap(True)
-        cache_layout.addWidget(cache_hint)
-
-        self.cache_status = QLabel()
-        self.cache_status.setWordWrap(True)
-        cache_layout.addWidget(self.cache_status)
-        self._update_cache_status()
-
         cache_row = QHBoxLayout()
         self.btn_clear_location_cache = QPushButton("清除位置缓存")
         self.btn_clear_location_cache.clicked.connect(
@@ -349,20 +337,12 @@ class ConfigPage(QWidget):
         home_group = QGroupBox("设置家乡")
         home_layout = QVBoxLayout()
 
-        home_hint = QLabel(
-            "选择一张在家乡拍摄的、带 GPS 信息的照片，程序会自动识别国家/省份并写入 [Home] 配置。"
-        )
-        home_hint.setWordWrap(True)
-        home_layout.addWidget(home_hint)
-
         home_row = QHBoxLayout()
         self.btn_set_home = QPushButton("选择照片并设置家乡...")
         self.btn_set_home.clicked.connect(self._set_home)
         home_row.addWidget(self.btn_set_home)
 
-        self.home_status = QLabel()
-        self.home_status.setWordWrap(True)
-        home_row.addWidget(self.home_status, 1)
+        home_row.addStretch()
         home_layout.addLayout(home_row)
 
         home_group.setLayout(home_layout)
@@ -475,7 +455,6 @@ name=%time-%original_name-%title.%extension
             return
 
         self.btn_set_home.setEnabled(False)
-        self.home_status.setText("正在识别照片位置，请稍候...")
 
         self._home_worker = _HomeDetectWorker(filepath)
         self._home_worker.finished.connect(self._on_home_detected)
@@ -484,10 +463,6 @@ name=%time-%original_name-%title.%extension
 
     def _on_home_detected(self, country, state, city):
         self.btn_set_home.setEnabled(True)
-        self.home_status.setText(
-            f"识别到: 国家={country}，省份={state or '未知'}，"
-            f"城市={city or '未知'}"
-        )
 
         if not os.path.exists(get_config_file()):
             self._save_config()
@@ -515,25 +490,7 @@ name=%time-%original_name-%title.%extension
 
     def _on_home_error(self, message):
         self.btn_set_home.setEnabled(True)
-        self.home_status.setText("设置失败。")
         QMessageBox.warning(self, "设置家乡失败", message)
-
-    def _update_cache_status(self):
-        """Refresh the cache summary label with current cache file sizes."""
-        parts = []
-        for label, path in (
-            ("位置缓存", constants.location_db()),
-            ("文件去重缓存", constants.hash_db()),
-        ):
-            if os.path.exists(path):
-                try:
-                    size = os.path.getsize(path)
-                    parts.append(f"{label}: {size / 1024:.1f} KB")
-                except OSError:
-                    parts.append(f"{label}: 无法读取")
-            else:
-                parts.append(f"{label}: 无")
-        self.cache_status.setText("  |  ".join(parts))
 
     def _clear_cache_file(self, path, description):
         if not os.path.exists(path):
@@ -551,7 +508,6 @@ name=%time-%original_name-%title.%extension
 
         try:
             os.remove(path)
-            self._update_cache_status()
             QMessageBox.information(self, "清除缓存", f"{description}已清除。")
         except OSError as e:
             QMessageBox.warning(self, "清除失败", f"无法清除{description}: {e}")
