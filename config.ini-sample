@@ -6,6 +6,14 @@ key=your-api-key-goes-here
 # dictionary and fallback layers.
 prefer_english_names=False
 
+# Amap (高德地图) API key for Chinese location reverse geocoding.
+# When configured, photos taken in China will use Amap to get Chinese place
+# names directly (province/city/district/town). International photos fall
+# back to Nominatim (OpenStreetMap) for Chinese translations.
+# Get a free key at https://console.amap.com/ (5000 calls/day).
+[Amap]
+key=your-amap-key-goes-here
+
 # Optional: when set, files are grouped by location relative to home.
 # Full templates live under [Directory]:
 #   full_path                  other countries     %country/%date/%state/%city

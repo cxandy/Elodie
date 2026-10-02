@@ -54,6 +54,14 @@ if (
    ):
     mapquest_key = environ['ELODIE_MAPQUEST_KEY']
 
+#: Amap (高德) key from environment
+amap_key = None
+if (
+        'ELODIE_AMAP_KEY' in environ and
+        environ['ELODIE_AMAP_KEY'] != ''
+   ):
+    amap_key = environ['ELODIE_AMAP_KEY']
+
 #: Accepted language in responses from MapQuest
 accepted_language = 'en'
 

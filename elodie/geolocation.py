@@ -19,6 +19,7 @@ __KEY__ = None
 __DEFAULT_LOCATION__ = 'Unknown Location'
 __PREFER_ENGLISH_NAMES__ = None
 __EXIFTOOL_AVAILABLE__ = None
+__AMAP_KEY__ = None
 
 # Process-wide cache of resolved place names keyed by bucketed coordinates.
 # Photos are usually taken in clusters around a spot during an import, so a
@@ -37,13 +38,16 @@ def coordinates_by_name(name):
 
 
 def clear_caches():
-    """Drop both process-wide lookup caches.
+    """Drop all process-wide lookup caches.
 
     Used by tests (and batch boundaries) where the underlying location db
     is mutated directly, so stale in-memory entries must not be reused.
     """
     _NAME_COORD_CACHE.clear()
     _LOCATION_CACHE.clear()
+    from elodie.cn_locations import _amap_cache, _nominatim_cache
+    _amap_cache.clear()
+    _nominatim_cache.clear()
 
 
 def _coordinates_by_name_uncached(name):
@@ -250,6 +254,25 @@ def get_prefer_english_names():
     __PREFER_ENGLISH_NAMES__ = bool(config['MapQuest']['prefer_english_names'])
     return __PREFER_ENGLISH_NAMES__
 
+def get_amap_key():
+    global __AMAP_KEY__
+    if __AMAP_KEY__ is not None:
+        return __AMAP_KEY__
+
+    if constants.amap_key is not None:
+        __AMAP_KEY__ = constants.amap_key
+        return __AMAP_KEY__
+
+    config = load_config()
+    if 'Amap' in config and 'key' in config['Amap']:
+        key = config['Amap']['key'].strip()
+        if key and key != 'your-amap-key-goes-here':
+            __AMAP_KEY__ = key
+            return __AMAP_KEY__
+
+    __AMAP_KEY__ = ''
+    return None
+
 def _coordinate_bucket(lat, lon):
     """Return a hashable key for the coordinate bucket used by the cache."""
     return '{}/{}'.format(
@@ -292,6 +315,19 @@ def place_name(lat, lon):
         return dict(cached_place_name)
 
     lookup_place_name = {}
+
+    # When Chinese names are preferred, try the direct Chinese reverse-geocoding
+    # providers first (Amap for China, Nominatim for international). This skips
+    # the English-name-then-translate pipeline and gives better results.
+    if not get_prefer_english_names():
+        from elodie.cn_locations import reverse_geocode_to_chinese
+        chinese_result = reverse_geocode_to_chinese(lat, lon, get_amap_key())
+        if chinese_result:
+            lookup_place_name = chinese_result
+            db.add_location(lat, lon, lookup_place_name)
+            db.update_location_db()
+            _LOCATION_CACHE[bucket] = lookup_place_name
+            return dict(lookup_place_name)
 
     # Use MapQuest if key is available, otherwise use ExifTool
     key = get_key()

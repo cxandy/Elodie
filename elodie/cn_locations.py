@@ -275,3 +275,181 @@ def translate_location_dict(location_dict):
             # sending them to the translator would just waste an API call.
             result[key] = value
     return result
+
+
+# ---------------------------------------------------------------------------
+# Reverse geocoding providers that return Chinese names directly
+# ---------------------------------------------------------------------------
+
+# Rough bounding box for mainland China. Used to decide whether to call the
+# Amap API (which only covers China) or fall back to Nominatim for the rest
+# of the world. The box is intentionally generous so border-area photos are
+# still routed to Amap.
+_CHINA_BBOX = {
+    'min_lat': 18.0, 'max_lat': 54.0,
+    'min_lon': 73.0, 'max_lon': 135.5,
+}
+
+_amap_cache = {}
+_nominatim_cache = {}
+
+
+def _in_china(lat, lon):
+    """Return True if the coordinate falls within the China bounding box."""
+    return (
+        _CHINA_BBOX['min_lat'] <= lat <= _CHINA_BBOX['max_lat']
+        and _CHINA_BBOX['min_lon'] <= lon <= _CHINA_BBOX['max_lon']
+    )
+
+
+def amap_place_name(lat, lon, api_key):
+    """Reverse-geocode via Amap and return a Chinese location dict.
+
+    Returns a dict with keys: city, state, country, district, town, default.
+    All values are Chinese strings. Returns None on failure so the caller can
+    fall back to the next provider.
+    """
+    if not api_key:
+        return None
+
+    cache_key = f'{lat:.2f},{lon:.2f}'
+    if cache_key in _amap_cache:
+        return dict(_amap_cache[cache_key])
+
+    try:
+        resp = requests.get(
+            'https://restapi.amap.com/v3/geocode/regeo',
+            params={
+                'location': f'{lon},{lat}',
+                'key': api_key,
+                'extensions': 'base',
+                'output': 'JSON',
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        if data.get('status') != '1' or not data.get('regeocode'):
+            return None
+
+        addr = data['regeocode'].get('addressComponent', {})
+
+        city = addr.get('city') or ''
+        if isinstance(city, list):
+            city = ''
+        province = addr.get('province') or ''
+        if isinstance(province, list):
+            province = ''
+        district = addr.get('district') or ''
+        if isinstance(district, list):
+            district = ''
+        town = addr.get('township') or ''
+        if isinstance(town, list):
+            town = ''
+
+        if not any([city, province, district]):
+            return None
+
+        result = {
+            'city': city or district or province,
+            'state': province,
+            'country': '中国',
+            'default': city or district or province,
+        }
+        if district:
+            result['district'] = district
+        if town:
+            result['town'] = town
+
+        _amap_cache[cache_key] = result
+        return dict(result)
+
+    except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+        log.debug('Amap reverse geocoding failed for (%s, %s): %s', lat, lon, e)
+        return None
+
+
+def nominatim_place_name(lat, lon):
+    """Reverse-geocode via Nominatim (OpenStreetMap) with Chinese locale.
+
+    Returns a dict with keys: city, state, country, default.
+    All values are Chinese strings. Returns None on failure.
+    """
+    cache_key = f'{lat:.2f},{lon:.2f}'
+    if cache_key in _nominatim_cache:
+        cached = _nominatim_cache[cache_key]
+        return dict(cached) if cached else None
+
+    try:
+        resp = requests.get(
+            'https://nominatim.openstreetmap.org/reverse',
+            params={
+                'lat': lat,
+                'lon': lon,
+                'format': 'json',
+                'accept-language': 'zh-CN',
+                'zoom': 10,
+            },
+            headers={'User-Agent': 'Elodie/1.0'},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        addr = data.get('address', {})
+        if not addr:
+            _nominatim_cache[cache_key] = None
+            return None
+
+        city = (
+            addr.get('city')
+            or addr.get('town')
+            or addr.get('county')
+            or addr.get('municipality')
+            or ''
+        )
+        state = addr.get('state') or ''
+        country = addr.get('country') or ''
+
+        if not any([city, state, country]):
+            _nominatim_cache[cache_key] = None
+            return None
+
+        result = {
+            'city': city or state or country,
+            'state': state,
+            'country': country,
+            'default': city or state or country,
+        }
+
+        _nominatim_cache[cache_key] = result
+        return dict(result)
+
+    except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+        log.debug('Nominatim reverse geocoding failed for (%s, %s): %s', lat, lon, e)
+        _nominatim_cache[cache_key] = None
+        return None
+
+
+def reverse_geocode_to_chinese(lat, lon, amap_key=None):
+    """Get Chinese place name from coordinates using the best provider.
+
+    Routes to Amap for China, Nominatim for the rest of the world.
+    Returns a location dict or None if all providers fail.
+    """
+    if _in_china(lat, lon):
+        result = amap_place_name(lat, lon, amap_key)
+        if result:
+            return result
+
+    result = nominatim_place_name(lat, lon)
+    if result:
+        return result
+
+    if not _in_china(lat, lon):
+        result = amap_place_name(lat, lon, amap_key)
+        if result:
+            return result
+
+    return None
